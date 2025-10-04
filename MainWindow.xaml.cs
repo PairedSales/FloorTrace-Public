@@ -32,32 +32,59 @@ namespace FloorTrace
                 scaleCalculationService,
                 areaCalculationService,
                 storageService);
+
+            // Add a handler for when a new image is loaded to center it
+            var vm = DataContext as MainWindowViewModel;
+            if (vm != null)
+            {
+                vm.PropertyChanged += (sender, args) =>
+                {
+                    if (args.PropertyName == nameof(vm.CurrentImage) && vm.CurrentImage != null)
+                    {
+                        // Use Dispatcher to wait for the layout to update after the image loads
+                        Dispatcher.BeginInvoke(new Action(() =>
+                        {
+                            CenterImageInView();
+                        }), System.Windows.Threading.DispatcherPriority.Loaded);
+                    }
+                };
+            }
         }
 
-        private void FloorPlanImage_MouseWheel(object sender, MouseWheelEventArgs e)
+        private void CenterImageInView()
         {
-            var zoomDelta = e.Delta > 0 ? _zoomStep : -_zoomStep;
-            var newZoom = Math.Max(_minZoom, Math.Min(_maxZoom, _zoomFactor + zoomDelta));
-            
-            if (Math.Abs(newZoom - _zoomFactor) > 0.01)
-            {
-                var mousePosition = e.GetPosition(FloorPlanImage);
-                ZoomToPoint(newZoom, mousePosition);
-            }
+            var newHorizontalOffset = (PanningCanvas.Width - ImageScrollViewer.ViewportWidth) / 2;
+            var newVerticalOffset = (PanningCanvas.Height - ImageScrollViewer.ViewportHeight) / 2;
+            ImageScrollViewer.ScrollToHorizontalOffset(newHorizontalOffset);
+            ImageScrollViewer.ScrollToVerticalOffset(newVerticalOffset);
+        }
+
+        private void ImageScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (FloorPlanImage.Source == null) return;
+
+            var newZoom = _zoomFactor + (e.Delta > 0 ? _zoomStep : -_zoomStep);
+            _zoomFactor = Math.Max(_minZoom, Math.Min(_maxZoom, newZoom));
+
+            var mousePosition = e.GetPosition(ImageGrid);
+            ZoomTransform.CenterX = mousePosition.X;
+            ZoomTransform.CenterY = mousePosition.Y;
+            ZoomTransform.ScaleX = _zoomFactor;
+            ZoomTransform.ScaleY = _zoomFactor;
             
             e.Handled = true;
         }
 
-        private void FloorPlanImage_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        private void PanningCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            FloorPlanImage.CaptureMouse();
+            PanningCanvas.CaptureMouse();
             _isDragging = true;
             _lastMousePosition = e.GetPosition(ImageScrollViewer);
         }
 
-        private void FloorPlanImage_MouseMove(object sender, MouseEventArgs e)
+        private void PanningCanvas_MouseMove(object sender, MouseEventArgs e)
         {
-            if (_isDragging && FloorPlanImage.IsMouseCaptured)
+            if (_isDragging && PanningCanvas.IsMouseCaptured)
             {
                 var currentPosition = e.GetPosition(ImageScrollViewer);
                 var delta = new Point(
@@ -68,81 +95,50 @@ namespace FloorTrace
                 ImageScrollViewer.ScrollToVerticalOffset(ImageScrollViewer.VerticalOffset - delta.Y);
 
                 _lastMousePosition = currentPosition;
+                e.Handled = true;
             }
         }
 
-        private void FloorPlanImage_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        private void PanningCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
             _isDragging = false;
-            FloorPlanImage.ReleaseMouseCapture();
-        }
-
-        private void ZoomToPoint(double newZoom, Point zoomPoint)
-        {
-            var oldZoom = _zoomFactor;
-            _zoomFactor = newZoom;
-            
-            // Calculate the zoom center point relative to the image
-            var imageCenter = new Point(FloorPlanImage.ActualWidth / 2, FloorPlanImage.ActualHeight / 2);
-            var zoomCenter = zoomPoint;
-            
-            // Apply zoom transform
-            var transform = new ScaleTransform(_zoomFactor, _zoomFactor);
-            FloorPlanImage.RenderTransform = transform;
-            
-            // Adjust scroll position to maintain zoom center
-            var scrollCenter = new Point(
-                ImageScrollViewer.HorizontalOffset + ImageScrollViewer.ViewportWidth / 2,
-                ImageScrollViewer.VerticalOffset + ImageScrollViewer.ViewportHeight / 2);
-            
-            var newScrollX = zoomCenter.X * _zoomFactor - scrollCenter.X + ImageScrollViewer.HorizontalOffset;
-            var newScrollY = zoomCenter.Y * _zoomFactor - scrollCenter.Y + ImageScrollViewer.VerticalOffset;
-            
-            ImageScrollViewer.ScrollToHorizontalOffset(newScrollX);
-            ImageScrollViewer.ScrollToVerticalOffset(newScrollY);
+            PanningCanvas.ReleaseMouseCapture();
         }
 
         private void ZoomIn_Click(object sender, RoutedEventArgs e)
         {
-            var newZoom = Math.Min(_maxZoom, _zoomFactor + _zoomStep);
-            var centerPoint = new Point(FloorPlanImage.ActualWidth / 2, FloorPlanImage.ActualHeight / 2);
-            ZoomToPoint(newZoom, centerPoint);
+            _zoomFactor = Math.Min(_maxZoom, _zoomFactor + _zoomStep);
+            ApplyCenterZoom();
         }
 
         private void ZoomOut_Click(object sender, RoutedEventArgs e)
         {
-            var newZoom = Math.Max(_minZoom, _zoomFactor - _zoomStep);
-            var centerPoint = new Point(FloorPlanImage.ActualWidth / 2, FloorPlanImage.ActualHeight / 2);
-            ZoomToPoint(newZoom, centerPoint);
+            _zoomFactor = Math.Max(_minZoom, _zoomFactor - _zoomStep);
+            ApplyCenterZoom();
         }
 
         private void ResetZoom_Click(object sender, RoutedEventArgs e)
         {
             _zoomFactor = 1.0;
-            FloorPlanImage.RenderTransform = new ScaleTransform(1.0, 1.0);
-            ImageScrollViewer.ScrollToHorizontalOffset(0);
-            ImageScrollViewer.ScrollToVerticalOffset(0);
+            ApplyCenterZoom();
+        }
+        
+        private void ApplyCenterZoom()
+        {
+            ZoomTransform.CenterX = ImageScrollViewer.ViewportWidth / 2;
+            ZoomTransform.CenterY = ImageScrollViewer.ViewportHeight / 2;
+            ZoomTransform.ScaleX = _zoomFactor;
+            ZoomTransform.ScaleY = _zoomFactor;
         }
 
         private void FitToWindow_Click(object sender, RoutedEventArgs e)
         {
+            var vm = DataContext as MainWindowViewModel;
             if (FloorPlanImage.Source != null)
             {
-                var imageWidth = FloorPlanImage.Source.Width;
-                var imageHeight = FloorPlanImage.Source.Height;
-                var viewportWidth = ImageScrollViewer.ViewportWidth;
-                var viewportHeight = ImageScrollViewer.ViewportHeight;
-                
-                var scaleX = viewportWidth / imageWidth;
-                var scaleY = viewportHeight / imageHeight;
-                var scale = Math.Min(scaleX, scaleY) * 0.9; // 90% to leave some margin
-                
-                _zoomFactor = Math.Max(_minZoom, Math.Min(_maxZoom, scale));
-                FloorPlanImage.RenderTransform = new ScaleTransform(_zoomFactor, _zoomFactor);
-                
-                // Center the image
-                ImageScrollViewer.ScrollToHorizontalOffset((imageWidth * _zoomFactor - viewportWidth) / 2);
-                ImageScrollViewer.ScrollToVerticalOffset((imageHeight * _zoomFactor - viewportHeight) / 2);
+                _zoomFactor = 1.0;
+                ApplyCenterZoom();
+                CenterImageInView(); // Re-center after fitting
             }
         }
     }

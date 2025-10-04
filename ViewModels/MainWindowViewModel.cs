@@ -8,6 +8,7 @@ using Microsoft.Toolkit.Mvvm.ComponentModel;
 using Microsoft.Toolkit.Mvvm.Input;
 using FloorTrace.Models;
 using FloorTrace.Services;
+using System.Linq;
 
 namespace FloorTrace.ViewModels
 {
@@ -20,6 +21,10 @@ namespace FloorTrace.ViewModels
         
         private Sketch _currentSketch;
         private BitmapImage _currentImage;
+        private ObservableCollection<Sketch> _priorSketches;
+
+        [ObservableProperty]
+        private bool isResultsPanelVisible = false;
         
         public MainWindowViewModel(
             IImageProcessingService imageProcessingService,
@@ -49,6 +54,7 @@ namespace FloorTrace.ViewModels
                     return;
                 
                 await LoadImageFromPath(filePath);
+                IsResultsPanelVisible = false;
             }
             catch (Exception ex)
             {
@@ -91,6 +97,7 @@ namespace FloorTrace.ViewModels
                 OnPropertyChanged(nameof(ScaleText));
                 OnPropertyChanged(nameof(SideLengthsText));
                 OnPropertyChanged(nameof(AreaText));
+                OnPropertyChanged(nameof(IsResultsPanelVisible));
                 
                 System.Diagnostics.Debug.WriteLine("PasteImage command completed successfully");
             }
@@ -128,6 +135,7 @@ namespace FloorTrace.ViewModels
             OnPropertyChanged(nameof(ScaleText));
             OnPropertyChanged(nameof(SideLengthsText));
             OnPropertyChanged(nameof(AreaText));
+            OnPropertyChanged(nameof(IsResultsPanelVisible));
         }
         
         [ICommand]
@@ -180,6 +188,7 @@ namespace FloorTrace.ViewModels
             {
                 // TODO: Implement area calculation using Green's theorem
                 OnPropertyChanged(nameof(AreaText));
+                IsResultsPanelVisible = true;
             }
             catch (Exception ex)
             {
@@ -209,13 +218,11 @@ namespace FloorTrace.ViewModels
         
         public BitmapImage CurrentImage => _currentImage;
         
-        public string ScaleText => $"Scale: {_currentSketch.Scale:F2} pixels/foot";
+        public string ScaleText => _currentSketch != null ? $"Scale: {_currentSketch.Scale:F2} px/ft" : "Scale: Not set";
         
-        public string SideLengthsText => _currentSketch.SideLengths.Count > 0 
-            ? $"Side Lengths: {string.Join(", ", _currentSketch.SideLengths)} ft"
-            : "Side Lengths: Not calculated";
+        public string SideLengthsText => _currentSketch?.SideLengths.Count > 0 ? $"Side Lengths: {string.Join(", ", _currentSketch.SideLengths.Select(l => $"{l:F2} ft"))}" : "Side Lengths: N/A";
         
-        public string AreaText => $"Area: {_currentSketch.AreaSquareFeet:F2} sq ft";
+        public string AreaText => _currentSketch != null ? $"Area: {_currentSketch.AreaSquareFeet:F2} sq ft" : "Area: N/A";
         
         // Private methods
         private void LoadPriorSketches()

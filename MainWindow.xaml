@@ -5,6 +5,10 @@
         Height="800" Width="1200"
         MinHeight="600" MinWidth="900">
     
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </Window.Resources>
+
     <Window.InputBindings>
         <KeyBinding Key="V" Modifiers="Ctrl" Command="{Binding PasteImageCommand}"/>
         <KeyBinding Key="O" Modifiers="Ctrl" Command="{Binding LoadImageCommand}"/>
@@ -56,25 +60,35 @@
                     <!-- Canvas for floor plan image with pan and zoom -->
                     <Border Background="White" ClipToBounds="True">
                         <ScrollViewer x:Name="ImageScrollViewer" 
-                                     HorizontalScrollBarVisibility="Auto" 
-                                     VerticalScrollBarVisibility="Auto"
+                                     HorizontalScrollBarVisibility="Hidden" 
+                                     VerticalScrollBarVisibility="Hidden"
                                      CanContentScroll="True"
-                                     Background="White">
-                            <Canvas x:Name="FloorPlanCanvas" Background="White">
-                                <Image x:Name="FloorPlanImage" 
-                                       Source="{Binding CurrentImage}" 
-                                       Stretch="None"
-                                       MouseWheel="FloorPlanImage_MouseWheel"
-                                       MouseLeftButtonDown="FloorPlanImage_MouseLeftButtonDown"
-                                       MouseMove="FloorPlanImage_MouseMove"
-                                       MouseLeftButtonUp="FloorPlanImage_MouseLeftButtonUp"/>
-                            </Canvas>
+                                     Background="White"
+                                     PreviewMouseWheel="ImageScrollViewer_PreviewMouseWheel">
+                            <!-- Large canvas to enable panning even when image is smaller than viewport -->
+                            <Grid x:Name="PanningCanvas" Width="30000" Height="30000"
+                                  Background="Transparent"
+                                  MouseLeftButtonDown="PanningCanvas_MouseLeftButtonDown"
+                                  MouseMove="PanningCanvas_MouseMove"
+                                  MouseLeftButtonUp="PanningCanvas_MouseLeftButtonUp">
+                                <Grid x:Name="ImageGrid" 
+                                      HorizontalAlignment="Center" 
+                                      VerticalAlignment="Center">
+                                    <Grid.LayoutTransform>
+                                        <ScaleTransform x:Name="ZoomTransform" ScaleX="1" ScaleY="1"/>
+                                    </Grid.LayoutTransform>
+                                    <Image x:Name="FloorPlanImage" 
+                                           Source="{Binding CurrentImage}" 
+                                           Stretch="None"/>
+                                </Grid>
+                            </Grid>
                         </ScrollViewer>
                     </Border>
                     
                     <!-- Results Display -->
                     <Border Background="LightYellow" HorizontalAlignment="Left" VerticalAlignment="Top" 
-                            Padding="10" Margin="10" BorderBrush="Black" BorderThickness="1">
+                            Padding="10" Margin="10" BorderBrush="Black" BorderThickness="1"
+                            Visibility="{Binding IsResultsPanelVisible, Converter={StaticResource BoolToVis}}">
                         <StackPanel>
                             <TextBlock Text="Results" FontWeight="Bold" FontSize="14"/>
                             <TextBlock Text="{Binding ScaleText}" Margin="0,2"/>
