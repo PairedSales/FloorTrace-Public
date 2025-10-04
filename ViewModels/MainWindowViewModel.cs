@@ -1,0 +1,155 @@
+using System;
+using System.Collections.ObjectModel;
+using System.Windows.Input;
+using Microsoft.Toolkit.Mvvm.ComponentModel;
+using Microsoft.Toolkit.Mvvm.Input;
+using FloorTrace.Models;
+using FloorTrace.Services;
+
+namespace FloorTrace.ViewModels
+{
+    public partial class MainWindowViewModel : ObservableObject
+    {
+        private readonly IImageProcessingService _imageProcessingService;
+        private readonly IScaleCalculationService _scaleCalculationService;
+        private readonly IAreaCalculationService _areaCalculationService;
+        private readonly IStorageService _storageService;
+        
+        private Sketch _currentSketch;
+        
+        public MainWindowViewModel(
+            IImageProcessingService imageProcessingService,
+            IScaleCalculationService scaleCalculationService,
+            IAreaCalculationService areaCalculationService,
+            IStorageService storageService)
+        {
+            _imageProcessingService = imageProcessingService;
+            _scaleCalculationService = scaleCalculationService;
+            _areaCalculationService = areaCalculationService;
+            _storageService = storageService;
+            
+            _currentSketch = new Sketch();
+            PriorSketches = new ObservableCollection<Sketch>();
+            
+            LoadPriorSketches();
+        }
+        
+        // Commands
+        [ICommand]
+        public async void LoadImage()
+        {
+            try
+            {
+                // TODO: Implement image loading dialog
+                // For now, create a placeholder
+                _currentSketch = new Sketch
+                {
+                    Name = $"Sketch {DateTime.Now:yyyy-MM-dd HH:mm}",
+                    DateCreated = DateTime.Now
+                };
+                
+                // TODO: Load actual image and create thumbnail
+                OnPropertyChanged(nameof(ScaleText));
+                OnPropertyChanged(nameof(SideLengthsText));
+                OnPropertyChanged(nameof(AreaText));
+            }
+            catch (Exception ex)
+            {
+                // TODO: Show error dialog
+                System.Diagnostics.Debug.WriteLine($"Error loading image: {ex.Message}");
+            }
+        }
+        
+        [ICommand]
+        public async void DetectRooms()
+        {
+            try
+            {
+                // TODO: Implement room detection
+                // This would use OCR to detect room dimensions
+                OnPropertyChanged(nameof(ScaleText));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error detecting rooms: {ex.Message}");
+            }
+        }
+        
+        [ICommand]
+        public async void SetScale()
+        {
+            try
+            {
+                // TODO: Implement scale calculation from selected room
+                OnPropertyChanged(nameof(ScaleText));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error setting scale: {ex.Message}");
+            }
+        }
+        
+        [ICommand]
+        public async void TracePerimeter()
+        {
+            try
+            {
+                // TODO: Implement automatic perimeter tracing
+                OnPropertyChanged(nameof(SideLengthsText));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error tracing perimeter: {ex.Message}");
+            }
+        }
+        
+        [ICommand]
+        public async void CalculateArea()
+        {
+            try
+            {
+                // TODO: Implement area calculation using Green's theorem
+                OnPropertyChanged(nameof(AreaText));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error calculating area: {ex.Message}");
+            }
+        }
+        
+        [ICommand]
+        public async void SaveSketch()
+        {
+            try
+            {
+                _currentSketch.IsPermanent = true;
+                _currentSketch.DateModified = DateTime.Now;
+                
+                // TODO: Implement saving to storage
+                LoadPriorSketches(); // Refresh the list
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error saving sketch: {ex.Message}");
+            }
+        }
+        
+        // Properties
+        public ObservableCollection<Sketch> PriorSketches { get; }
+        
+        public string ScaleText => $"Scale: {_currentSketch.Scale:F2} pixels/foot";
+        
+        public string SideLengthsText => _currentSketch.SideLengths.Count > 0 
+            ? $"Side Lengths: {string.Join(", ", _currentSketch.SideLengths)} ft"
+            : "Side Lengths: Not calculated";
+        
+        public string AreaText => $"Area: {_currentSketch.AreaSquareFeet:F2} sq ft";
+        
+        // Private methods
+        private void LoadPriorSketches()
+        {
+            PriorSketches.Clear();
+            // TODO: Load from storage service
+        }
+    }
+}
