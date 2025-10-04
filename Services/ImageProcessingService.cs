@@ -73,10 +73,10 @@ namespace FloorTrace.Services
                 // Clipboard operations must be on UI thread
                 return System.Windows.Application.Current.Dispatcher.Invoke(() =>
                 {
-                    if (!Clipboard.ContainsImage())
+                    if (!System.Windows.Clipboard.ContainsImage())
                         throw new InvalidOperationException("No image in clipboard");
                     
-                    var bitmapSource = Clipboard.GetImage();
+                    var bitmapSource = System.Windows.Clipboard.GetImage();
                     if (bitmapSource == null)
                         throw new InvalidOperationException("Failed to get image from clipboard");
                     
@@ -153,16 +153,10 @@ namespace FloorTrace.Services
         
         public string ShowOpenFileDialog()
         {
-            var openFileDialog = new OpenFileDialog
+            var openFileDialog = new Microsoft.Win32.OpenFileDialog
             {
-                Title = "Select Floor Plan Image",
-                Filter = "Image Files|*.jpg;*.jpeg;*.png;*.bmp;*.tif;*.tiff;*.webp|" +
-                        "JPEG Images|*.jpg;*.jpeg|" +
-                        "PNG Images|*.png|" +
-                        "Bitmap Images|*.bmp|" +
-                        "TIFF Images|*.tif;*.tiff|" +
-                        "WebP Images|*.webp|" +
-                        "All Files|*.*",
+                Title = "Open Floor Plan Image",
+                Filter = "Image Files|*.jpg;*.jpeg;*.png;*.bmp;*.tif;*.tiff;*.webp|All files (*.*)|*.*",
                 FilterIndex = 1
             };
             

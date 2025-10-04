@@ -1,14 +1,15 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
-using Microsoft.Toolkit.Mvvm.ComponentModel;
-using Microsoft.Toolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using FloorTrace.Models;
 using FloorTrace.Services;
-using System.Linq;
 
 namespace FloorTrace.ViewModels
 {
@@ -44,7 +45,7 @@ namespace FloorTrace.ViewModels
         }
         
         // Commands
-        [ICommand]
+        [RelayCommand]
         public async void LoadImage()
         {
             try
@@ -63,7 +64,7 @@ namespace FloorTrace.ViewModels
             }
         }
         
-        [ICommand]
+        [RelayCommand]
         public async void PasteImage()
         {
             try
@@ -138,67 +139,40 @@ namespace FloorTrace.ViewModels
             OnPropertyChanged(nameof(IsResultsPanelVisible));
         }
         
-        [ICommand]
+        [RelayCommand]
         public async void DetectRooms()
         {
-            try
-            {
-                // TODO: Implement room detection
-                // This would use OCR to detect room dimensions
-                OnPropertyChanged(nameof(ScaleText));
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error detecting rooms: {ex.Message}");
-            }
+            // Placeholder for room detection logic
+            await Task.Delay(100);
         }
         
-        [ICommand]
+        [RelayCommand]
         public async void SetScale()
         {
-            try
-            {
-                // TODO: Implement scale calculation from selected room
-                OnPropertyChanged(nameof(ScaleText));
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error setting scale: {ex.Message}");
-            }
+            // Placeholder for scale setting logic
+            await Task.Delay(100);
         }
         
-        [ICommand]
+        [RelayCommand]
         public async void TracePerimeter()
         {
-            try
-            {
-                // TODO: Implement automatic perimeter tracing
-                OnPropertyChanged(nameof(SideLengthsText));
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error tracing perimeter: {ex.Message}");
-            }
+            // Placeholder for perimeter tracing logic
+            await Task.Delay(100);
         }
         
-        [ICommand]
+        [RelayCommand]
         public async void CalculateArea()
         {
-            try
-            {
-                // TODO: Implement area calculation using Green's theorem
-                OnPropertyChanged(nameof(AreaText));
-                IsResultsPanelVisible = true;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error calculating area: {ex.Message}");
-            }
+            // Placeholder for area calculation logic
+            await Task.Delay(100);
+            IsResultsPanelVisible = true;
         }
         
-        [ICommand]
+        [RelayCommand]
         public async void SaveSketch()
         {
+            // Placeholder for save logic
+            await Task.Delay(100);
             try
             {
                 _currentSketch.IsPermanent = true;

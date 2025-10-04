@@ -14,7 +14,6 @@ C:\Users\jeffh\Coding Projects\FloorTrace\bin\Debug\net8.0-windows\FloorTrace.de
 C:\Users\jeffh\Coding Projects\FloorTrace\bin\Debug\net8.0-windows\FloorTrace.runtimeconfig.json
 C:\Users\jeffh\Coding Projects\FloorTrace\bin\Debug\net8.0-windows\FloorTrace.dll
 C:\Users\jeffh\Coding Projects\FloorTrace\bin\Debug\net8.0-windows\FloorTrace.pdb
-C:\Users\jeffh\Coding Projects\FloorTrace\bin\Debug\net8.0-windows\Microsoft.Toolkit.Mvvm.dll
 C:\Users\jeffh\Coding Projects\FloorTrace\obj\Debug\net8.0-windows\FloorTrace.csproj.Up2Date
 C:\Users\jeffh\Coding Projects\FloorTrace\obj\Debug\net8.0-windows\FloorTrace.dll
 C:\Users\jeffh\Coding Projects\FloorTrace\obj\Debug\net8.0-windows\refint\FloorTrace.dll
@@ -23,11 +22,12 @@ C:\Users\jeffh\Coding Projects\FloorTrace\obj\Debug\net8.0-windows\FloorTrace.ge
 C:\Users\jeffh\Coding Projects\FloorTrace\obj\Debug\net8.0-windows\ref\FloorTrace.dll
 C:\Users\jeffh\Coding Projects\FloorTrace\obj\Debug\net8.0-windows\FloorTrace.sourcelink.json
 C:\Users\jeffh\Coding Projects\FloorTrace\bin\Debug\net8.0-windows\SkiaSharp.dll
-C:\Users\jeffh\Coding Projects\FloorTrace\bin\Debug\net8.0-windows\runtimes\linux-arm\native\libSkiaSharp.so
-C:\Users\jeffh\Coding Projects\FloorTrace\bin\Debug\net8.0-windows\runtimes\linux-arm64\native\libSkiaSharp.so
-C:\Users\jeffh\Coding Projects\FloorTrace\bin\Debug\net8.0-windows\runtimes\linux-musl-x64\native\libSkiaSharp.so
-C:\Users\jeffh\Coding Projects\FloorTrace\bin\Debug\net8.0-windows\runtimes\linux-x64\native\libSkiaSharp.so
 C:\Users\jeffh\Coding Projects\FloorTrace\bin\Debug\net8.0-windows\runtimes\osx\native\libSkiaSharp.dylib
 C:\Users\jeffh\Coding Projects\FloorTrace\bin\Debug\net8.0-windows\runtimes\win-arm64\native\libSkiaSharp.dll
 C:\Users\jeffh\Coding Projects\FloorTrace\bin\Debug\net8.0-windows\runtimes\win-x64\native\libSkiaSharp.dll
 C:\Users\jeffh\Coding Projects\FloorTrace\bin\Debug\net8.0-windows\runtimes\win-x86\native\libSkiaSharp.dll
+C:\Users\jeffh\Coding Projects\FloorTrace\bin\Debug\net8.0-windows\CommunityToolkit.Mvvm.dll
+C:\Users\jeffh\Coding Projects\FloorTrace\bin\Debug\net8.0-windows\runtimes\linux-arm\native\libSkiaSharp.so
+C:\Users\jeffh\Coding Projects\FloorTrace\bin\Debug\net8.0-windows\runtimes\linux-arm64\native\libSkiaSharp.so
+C:\Users\jeffh\Coding Projects\FloorTrace\bin\Debug\net8.0-windows\runtimes\linux-musl-x64\native\libSkiaSharp.so
+C:\Users\jeffh\Coding Projects\FloorTrace\bin\Debug\net8.0-windows\runtimes\linux-x64\native\libSkiaSharp.so

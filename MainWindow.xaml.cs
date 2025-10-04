@@ -1,17 +1,22 @@
 using System;
+using System.IO;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Forms;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using FloorTrace.ViewModels;
 using FloorTrace.Services;
+using FloorTrace.Models;
 
 namespace FloorTrace
 {
     public partial class MainWindow : Window
     {
         private bool _isDragging = false;
-        private Point _lastMousePosition;
+        private System.Windows.Point _lastMousePosition;
         private double _zoomFactor = 1.0;
         private const double _zoomStep = 0.1;
         private const double _minZoom = 0.1;
@@ -20,6 +25,7 @@ namespace FloorTrace
         public MainWindow()
         {
             InitializeComponent();
+            LoadWindowSettings();
             
             // Initialize services and ViewModel
             var imageProcessingService = new ImageProcessingService();
@@ -48,6 +54,72 @@ namespace FloorTrace
                         }), System.Windows.Threading.DispatcherPriority.Loaded);
                     }
                 };
+            }
+            
+            this.Closing += MainWindow_Closing;
+        }
+
+        private void MainWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            SaveWindowSettings();
+        }
+
+        private string GetSettingsFilePath()
+        {
+            string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            string appFolder = Path.Combine(appDataPath, "FloorTrace");
+            Directory.CreateDirectory(appFolder);
+            return Path.Combine(appFolder, "settings.json");
+        }
+
+        private void SaveWindowSettings()
+        {
+            var settings = new WindowSettings
+            {
+                Top = this.Top,
+                Left = this.Left,
+                Height = this.Height,
+                Width = this.Width,
+                WindowState = this.WindowState
+            };
+
+            string json = JsonSerializer.Serialize(settings);
+            File.WriteAllText(GetSettingsFilePath(), json);
+        }
+
+        private void LoadWindowSettings()
+        {
+            string settingsFile = GetSettingsFilePath();
+            if (File.Exists(settingsFile))
+            {
+                string json = File.ReadAllText(settingsFile);
+                var settings = JsonSerializer.Deserialize<WindowSettings>(json);
+
+                // Add logic to ensure the window is visible on a screen
+                bool isWithinScreenBounds = false;
+                foreach (var screen in System.Windows.Forms.Screen.AllScreens)
+                {
+                    var screenBounds = new Rect(screen.WorkingArea.Left, screen.WorkingArea.Top, screen.WorkingArea.Width, screen.WorkingArea.Height);
+                    if (screenBounds.Contains(new System.Windows.Point(settings.Left, settings.Top)))
+                    {
+                        isWithinScreenBounds = true;
+                        break;
+                    }
+                }
+
+                if (isWithinScreenBounds)
+                {
+                    this.Top = settings.Top;
+                    this.Left = settings.Left;
+                    this.Height = settings.Height;
+                    this.Width = settings.Width;
+                    this.WindowState = settings.WindowState;
+                }
+                else
+                {
+                    // Window is off-screen, load with default position
+                    this.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+                }
             }
         }
 
@@ -82,12 +154,12 @@ namespace FloorTrace
             _lastMousePosition = e.GetPosition(ImageScrollViewer);
         }
 
-        private void PanningCanvas_MouseMove(object sender, MouseEventArgs e)
+        private void PanningCanvas_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
         {
             if (_isDragging && PanningCanvas.IsMouseCaptured)
             {
                 var currentPosition = e.GetPosition(ImageScrollViewer);
-                var delta = new Point(
+                var delta = new System.Windows.Point(
                     currentPosition.X - _lastMousePosition.X,
                     currentPosition.Y - _lastMousePosition.Y);
 

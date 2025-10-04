@@ -44,13 +44,13 @@
         "net8.0-windows7.0": {
           "targetAlias": "net8.0-windows",
           "dependencies": {
-            "Microsoft.Toolkit.Mvvm": {
+            "CommunityToolkit.Mvvm": {
               "target": "Package",
-              "version": "[7.1.2, )"
+              "version": "[8.2.2, )"
             },
             "SkiaSharp": {
               "target": "Package",
-              "version": "[2.88.6, )"
+              "version": "[2.88.8, )"
             },
             "SkiaSharp.NativeAssets.Linux": {
               "target": "Package",
@@ -58,7 +58,7 @@
             },
             "System.Text.Json": {
               "target": "Package",
-              "version": "[8.0.0, )"
+              "version": "[8.0.4, )"
             }
           },
           "imports": [
@@ -94,7 +94,7 @@
             "Microsoft.NETCore.App": {
               "privateAssets": "all"
             },
-            "Microsoft.WindowsDesktop.App.WPF": {
+            "Microsoft.WindowsDesktop.App": {
               "privateAssets": "none"
             }
           },
