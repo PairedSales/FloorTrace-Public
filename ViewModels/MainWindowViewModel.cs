@@ -1,6 +1,8 @@
 using System;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Windows.Input;
+using System.Windows.Media.Imaging;
 using Microsoft.Toolkit.Mvvm.ComponentModel;
 using Microsoft.Toolkit.Mvvm.Input;
 using FloorTrace.Models;
@@ -16,6 +18,7 @@ namespace FloorTrace.ViewModels
         private readonly IStorageService _storageService;
         
         private Sketch _currentSketch;
+        private BitmapImage _currentImage;
         
         public MainWindowViewModel(
             IImageProcessingService imageProcessingService,
@@ -40,23 +43,39 @@ namespace FloorTrace.ViewModels
         {
             try
             {
-                // TODO: Implement image loading dialog
-                // For now, create a placeholder
+                var filePath = _imageProcessingService.ShowOpenFileDialog();
+                if (string.IsNullOrEmpty(filePath))
+                    return;
+                
+                // Load the image
+                var image = await _imageProcessingService.LoadImageAsync(filePath);
+                
+                // Create thumbnail for the sidebar
+                var thumbnail = await _imageProcessingService.CreateThumbnailAsync(image, 150, 100);
+                
+                // Update current sketch
                 _currentSketch = new Sketch
                 {
-                    Name = $"Sketch {DateTime.Now:yyyy-MM-dd HH:mm}",
-                    DateCreated = DateTime.Now
+                    Name = Path.GetFileNameWithoutExtension(filePath),
+                    ImagePath = filePath,
+                    Thumbnail = thumbnail,
+                    DateCreated = DateTime.Now,
+                    DateModified = DateTime.Now
                 };
                 
-                // TODO: Load actual image and create thumbnail
+                // Store the full image for display
+                _currentImage = image;
+                
+                // Notify UI of changes
+                OnPropertyChanged(nameof(CurrentImage));
                 OnPropertyChanged(nameof(ScaleText));
                 OnPropertyChanged(nameof(SideLengthsText));
                 OnPropertyChanged(nameof(AreaText));
             }
             catch (Exception ex)
             {
-                // TODO: Show error dialog
                 System.Diagnostics.Debug.WriteLine($"Error loading image: {ex.Message}");
+                // TODO: Show error dialog to user
             }
         }
         
@@ -136,6 +155,8 @@ namespace FloorTrace.ViewModels
         
         // Properties
         public ObservableCollection<Sketch> PriorSketches { get; }
+        
+        public BitmapImage CurrentImage => _currentImage;
         
         public string ScaleText => $"Scale: {_currentSketch.Scale:F2} pixels/foot";
         

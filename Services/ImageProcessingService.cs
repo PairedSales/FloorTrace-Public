@@ -7,6 +7,8 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Drawing;
 using System.Drawing.Imaging;
+using SkiaSharp;
+using Microsoft.Win32;
 
 namespace FloorTrace.Services
 {
@@ -16,6 +18,15 @@ namespace FloorTrace.Services
         {
             return await Task.Run(() =>
             {
+                var extension = Path.GetExtension(filePath).ToLowerInvariant();
+                
+                // Handle WebP files using SkiaSharp
+                if (extension == ".webp")
+                {
+                    return LoadWebPImage(filePath);
+                }
+                
+                // Handle other formats using standard WPF
                 var bitmap = new BitmapImage();
                 bitmap.BeginInit();
                 bitmap.UriSource = new Uri(filePath);
@@ -24,6 +35,35 @@ namespace FloorTrace.Services
                 bitmap.Freeze();
                 return bitmap;
             });
+        }
+        
+        private BitmapImage LoadWebPImage(string filePath)
+        {
+            using var stream = File.OpenRead(filePath);
+            using var skiaStream = new SKManagedStream(stream);
+            using var skiaImage = SKImage.FromEncodedData(skiaStream);
+            using var skiaBitmap = SKBitmap.FromImage(skiaImage);
+            
+            // Convert SkiaSharp bitmap to WPF BitmapImage
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.EndInit();
+            bitmap.Freeze();
+            
+            // Create a memory stream from the SkiaSharp bitmap
+            using var memoryStream = new MemoryStream();
+            var data = skiaImage.Encode(SKEncodedImageFormat.Png, 100);
+            memoryStream.Write(data.ToArray());
+            memoryStream.Position = 0;
+            
+            bitmap.BeginInit();
+            bitmap.StreamSource = memoryStream;
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.EndInit();
+            bitmap.Freeze();
+            
+            return bitmap;
         }
         
         public async Task<BitmapImage> LoadImageFromClipboardAsync()
@@ -94,6 +134,25 @@ namespace FloorTrace.Services
                     return false;
                 }
             });
+        }
+        
+        public string ShowOpenFileDialog()
+        {
+            var openFileDialog = new OpenFileDialog
+            {
+                Title = "Select Floor Plan Image",
+                Filter = "Image Files|*.jpg;*.jpeg;*.png;*.bmp;*.tif;*.tiff;*.webp|" +
+                        "JPEG Images|*.jpg;*.jpeg|" +
+                        "PNG Images|*.png|" +
+                        "Bitmap Images|*.bmp|" +
+                        "TIFF Images|*.tif;*.tiff|" +
+                        "WebP Images|*.webp|" +
+                        "All Files|*.*",
+                FilterIndex = 1
+            };
+            
+            var result = openFileDialog.ShowDialog();
+            return result == true ? openFileDialog.FileName : null;
         }
     }
 }

@@ -20,6 +20,13 @@
                 <Button Content="Trace Perimeter" Style="{StaticResource ButtonStyle}" Command="{Binding TracePerimeterCommand}"/>
                 <Button Content="Calculate Area" Style="{StaticResource ButtonStyle}" Command="{Binding CalculateAreaCommand}"/>
                 <Button Content="Save Sketch" Style="{StaticResource ButtonStyle}" Command="{Binding SaveSketchCommand}"/>
+                
+                <!-- Zoom Controls -->
+                <Separator Margin="10,0"/>
+                <Button Content="Zoom In" Style="{StaticResource ButtonStyle}" Click="ZoomIn_Click"/>
+                <Button Content="Zoom Out" Style="{StaticResource ButtonStyle}" Click="ZoomOut_Click"/>
+                <Button Content="Reset Zoom" Style="{StaticResource ButtonStyle}" Click="ResetZoom_Click"/>
+                <Button Content="Fit to Window" Style="{StaticResource ButtonStyle}" Click="FitToWindow_Click"/>
             </StackPanel>
         </Border>
         
@@ -39,10 +46,24 @@
                         <TextBlock Text="Current Sketch" FontWeight="Bold"/>
                     </Border>
                     
-                    <!-- Canvas for floor plan image -->
-                    <Canvas x:Name="FloorPlanCanvas" Background="White" ClipToBounds="True">
-                        <Image x:Name="FloorPlanImage" Stretch="Uniform"/>
-                    </Canvas>
+                    <!-- Canvas for floor plan image with pan and zoom -->
+                    <Border Background="White" ClipToBounds="True">
+                        <ScrollViewer x:Name="ImageScrollViewer" 
+                                     HorizontalScrollBarVisibility="Auto" 
+                                     VerticalScrollBarVisibility="Auto"
+                                     CanContentScroll="True"
+                                     Background="White">
+                            <Canvas x:Name="FloorPlanCanvas" Background="White">
+                                <Image x:Name="FloorPlanImage" 
+                                       Source="{Binding CurrentImage}" 
+                                       Stretch="None"
+                                       MouseWheel="FloorPlanImage_MouseWheel"
+                                       MouseLeftButtonDown="FloorPlanImage_MouseLeftButtonDown"
+                                       MouseMove="FloorPlanImage_MouseMove"
+                                       MouseLeftButtonUp="FloorPlanImage_MouseLeftButtonUp"/>
+                            </Canvas>
+                        </ScrollViewer>
+                    </Border>
                     
                     <!-- Results Display -->
                     <Border Background="LightYellow" HorizontalAlignment="Left" VerticalAlignment="Top" 

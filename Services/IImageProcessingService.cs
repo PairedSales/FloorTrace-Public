@@ -9,5 +9,6 @@ namespace FloorTrace.Services
         Task<BitmapImage> LoadImageFromClipboardAsync();
         Task<BitmapImage> CreateThumbnailAsync(BitmapImage sourceImage, int maxWidth, int maxHeight);
         Task<bool> SaveImageAsync(BitmapImage image, string filePath);
+        string ShowOpenFileDialog();
     }
 }
