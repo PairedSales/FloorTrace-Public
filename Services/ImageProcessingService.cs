@@ -70,19 +70,34 @@ namespace FloorTrace.Services
         {
             return await Task.Run(() =>
             {
-                if (!Clipboard.ContainsImage())
-                    throw new InvalidOperationException("No image in clipboard");
-                
-                var bitmapSource = Clipboard.GetImage();
-                if (bitmapSource == null)
-                    throw new InvalidOperationException("Failed to get image from clipboard");
-                
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.EndInit();
-                bitmap.Freeze();
-                return bitmap;
+                // Clipboard operations must be on UI thread
+                return System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                {
+                    if (!Clipboard.ContainsImage())
+                        throw new InvalidOperationException("No image in clipboard");
+                    
+                    var bitmapSource = Clipboard.GetImage();
+                    if (bitmapSource == null)
+                        throw new InvalidOperationException("Failed to get image from clipboard");
+                    
+                    // Convert BitmapSource to BitmapImage
+                    var encoder = new PngBitmapEncoder();
+                    encoder.Frames.Add(BitmapFrame.Create(bitmapSource));
+                    
+                    using (var stream = new MemoryStream())
+                    {
+                        encoder.Save(stream);
+                        stream.Position = 0;
+                        
+                        var bitmap = new BitmapImage();
+                        bitmap.BeginInit();
+                        bitmap.StreamSource = stream;
+                        bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                        bitmap.EndInit();
+                        bitmap.Freeze();
+                        return bitmap;
+                    }
+                });
             });
         }
         

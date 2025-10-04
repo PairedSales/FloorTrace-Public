@@ -5,6 +5,12 @@
         Height="800" Width="1200"
         MinHeight="600" MinWidth="900">
     
+    <Window.InputBindings>
+        <KeyBinding Key="V" Modifiers="Ctrl" Command="{Binding PasteImageCommand}"/>
+        <KeyBinding Key="O" Modifiers="Ctrl" Command="{Binding LoadImageCommand}"/>
+        <KeyBinding Key="S" Modifiers="Ctrl" Command="{Binding SaveSketchCommand}"/>
+    </Window.InputBindings>
+    
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -15,6 +21,7 @@
         <Border Grid.Row="0" Background="LightGray" Padding="10" BorderBrush="Black" BorderThickness="0,0,0,1">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                 <Button Content="Load Image" Style="{StaticResource ButtonStyle}" Command="{Binding LoadImageCommand}"/>
+                <Button Content="Paste Image" Style="{StaticResource ButtonStyle}" Command="{Binding PasteImageCommand}"/>
                 <Button Content="Detect Rooms" Style="{StaticResource ButtonStyle}" Command="{Binding DetectRoomsCommand}"/>
                 <Button Content="Use Selected Room for Scale" Style="{StaticResource ButtonStyle}" Command="{Binding SetScaleCommand}"/>
                 <Button Content="Trace Perimeter" Style="{StaticResource ButtonStyle}" Command="{Binding TracePerimeterCommand}"/>
