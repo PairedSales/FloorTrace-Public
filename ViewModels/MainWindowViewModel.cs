@@ -185,8 +185,22 @@ namespace FloorTrace.ViewModels
         [RelayCommand]
         public async void SetScale()
         {
-            // Placeholder for scale setting logic
-            await Task.Delay(100);
+            try
+            {
+                if (CurrentImage == null || CurrentSketch?.SelectedRoomForScale == null)
+                {
+                    System.Diagnostics.Debug.WriteLine("Cannot set scale: no image or no selected room.");
+                    return;
+                }
+
+                var scale = await _scaleCalculationService.CalculateScaleFromRoomAsync(CurrentSketch.SelectedRoomForScale, CurrentImage);
+                CurrentSketch.Scale = scale;
+                OnPropertyChanged(nameof(ScaleText));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error setting scale: {ex.Message}");
+            }
         }
         
         [RelayCommand]
@@ -220,6 +234,31 @@ namespace FloorTrace.ViewModels
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error saving sketch: {ex.Message}");
+            }
+        }
+        
+        [RelayCommand]
+        public async void LoadTestImage()
+        {
+            try
+            {
+                // Get the path to ExampleFloorplan.png in the project root
+                string testImagePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "ExampleFloorplan.png");
+                
+                // Check if the file exists
+                if (!File.Exists(testImagePath))
+                {
+                    System.Diagnostics.Debug.WriteLine($"Test image not found at: {testImagePath}");
+                    return;
+                }
+                
+                await LoadImageFromPath(testImagePath);
+                IsResultsPanelVisible = false;
+                System.Diagnostics.Debug.WriteLine("Test image loaded successfully");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error loading test image: {ex.Message}");
             }
         }
         

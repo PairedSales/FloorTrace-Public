@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "+e/LQvVK7Q0=",
+  "dgSpecHash": "p/0AGIY0vXk=",
   "success": true,
   "projectFilePath": "C:\\Users\\jeffh\\Coding Projects\\FloorTrace\\FloorTrace.csproj",
   "expectedPackageFiles": [
@@ -10,7 +10,8 @@
     "C:\\Users\\jeffh\\.nuget\\packages\\skiasharp.nativeassets.macos\\2.88.8\\skiasharp.nativeassets.macos.2.88.8.nupkg.sha512",
     "C:\\Users\\jeffh\\.nuget\\packages\\skiasharp.nativeassets.win32\\2.88.8\\skiasharp.nativeassets.win32.2.88.8.nupkg.sha512",
     "C:\\Users\\jeffh\\.nuget\\packages\\system.text.encodings.web\\8.0.0\\system.text.encodings.web.8.0.0.nupkg.sha512",
-    "C:\\Users\\jeffh\\.nuget\\packages\\system.text.json\\8.0.4\\system.text.json.8.0.4.nupkg.sha512"
+    "C:\\Users\\jeffh\\.nuget\\packages\\system.text.json\\8.0.4\\system.text.json.8.0.4.nupkg.sha512",
+    "C:\\Users\\jeffh\\.nuget\\packages\\microsoft.windows.sdk.net.ref\\10.0.19041.57\\microsoft.windows.sdk.net.ref.10.0.19041.57.nupkg.sha512"
   ],
   "logs": [
     {
@@ -22,7 +23,7 @@
       "filePath": "C:\\Users\\jeffh\\Coding Projects\\FloorTrace\\FloorTrace.csproj",
       "libraryId": "System.Text.Json",
       "targetGraphs": [
-        "net8.0-windows7.0"
+        "net8.0-windows10.0.19041"
       ]
     }
   ]

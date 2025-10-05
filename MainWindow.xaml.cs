@@ -53,6 +53,18 @@ namespace FloorTrace
                             CenterImageInView();
                         }), System.Windows.Threading.DispatcherPriority.Loaded);
                     }
+
+                    if (args.PropertyName == nameof(vm.CurrentSketch))
+                    {
+                        // Sketch replaced; clear any overlays
+                        OverlayCanvas.Children.Clear();
+                    }
+
+                    if (args.PropertyName == nameof(vm.CurrentSketch.SelectedRoomForScale) || args.PropertyName == nameof(vm.CurrentSketch.Rooms))
+                    {
+                        RenderSelectedRoomOverlay(vm);
+                        UpdateDimensionsTextBox(vm);
+                    }
                 };
             }
             
@@ -212,6 +224,106 @@ namespace FloorTrace
                 ApplyCenterZoom();
                 CenterImageInView(); // Re-center after fitting
             }
+        }
+
+        private void RenderSelectedRoomOverlay(MainWindowViewModel vm)
+        {
+            OverlayCanvas.Children.Clear();
+            var room = vm?.CurrentSketch?.SelectedRoomForScale;
+            if (room == null) return;
+
+            var overlay = new Controls.RoomOverlayControl
+            {
+                X = room.Bounds.X,
+                Y = room.Bounds.Y,
+                OverlayWidth = room.Bounds.Width,
+                OverlayHeight = room.Bounds.Height
+            };
+
+            overlay.OverlayChanged += (s, e) =>
+            {
+                // Sync position and size back into model
+                room.Bounds = new System.Drawing.RectangleF((float)overlay.X, (float)overlay.Y, (float)overlay.OverlayWidth, (float)overlay.OverlayHeight);
+            };
+
+            OverlayCanvas.Children.Add(overlay);
+        }
+
+        private void UpdateDimensionsTextBox(MainWindowViewModel vm)
+        {
+            var room = vm?.CurrentSketch?.SelectedRoomForScale;
+            if (room == null)
+            {
+                DimensionsPanel.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            DimensionsPanel.Visibility = Visibility.Visible;
+            RoomDimensionsTextBox.Text = string.IsNullOrWhiteSpace(room.Dimensions)
+                ? $"{room.WidthFeet:F1} x {room.HeightFeet:F1}"
+                : room.Dimensions;
+
+            // Add text changed handler
+            RoomDimensionsTextBox.TextChanged -= OnDimensionsTextChanged;
+            RoomDimensionsTextBox.TextChanged += OnDimensionsTextChanged;
+        }
+
+        private async void OnDimensionsTextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+        {
+            var vm = DataContext as MainWindowViewModel;
+            var room = vm?.CurrentSketch?.SelectedRoomForScale;
+            if (room == null) return;
+
+            var dimsText = RoomDimensionsTextBox.Text ?? string.Empty;
+            var svc = new ScaleCalculationService(new ImageProcessingService());
+            if (await svc.ValidateRoomDimensionsAsync(dimsText))
+            {
+                // Extract numbers
+                ParseDimensionsFeet(dimsText, out var w, out var h);
+                room.WidthFeet = w;
+                room.HeightFeet = h;
+                room.Dimensions = dimsText;
+            }
+        }
+
+        private static void ParseDimensionsFeet(string text, out double widthFeet, out double heightFeet)
+        {
+            // Supports: 12x15, 12'x15', 12 ft x 15 ft, 12 5\" x 10 3\"
+            widthFeet = 0;
+            heightFeet = 0;
+            string Normalize(string s) => s.Replace("\u2032", "'").Replace("\u2033", "\"");
+
+            text = Normalize(text);
+            var parts = text.ToLower().Split('x', '×');
+            if (parts.Length != 2) return;
+
+            double ParseOne(string p)
+            {
+                p = p.Trim();
+                // feet and inches like 12' 6"
+                var feetIdx = p.IndexOf("'");
+                if (feetIdx >= 0)
+                {
+                    var feetPart = p.Substring(0, feetIdx).Trim();
+                    var rest = p.Substring(feetIdx + 1);
+                    double feet = double.TryParse(feetPart, out var f) ? f : 0;
+                    double inches = 0;
+                    var quoteIdx = rest.IndexOf('"');
+                    if (quoteIdx >= 0)
+                    {
+                        var inchesPart = rest.Substring(0, quoteIdx).Trim();
+                        inches = double.TryParse(inchesPart, out var i) ? i : 0;
+                    }
+                    return feet + inches / 12.0;
+                }
+
+                // simple number optionally with 'ft'
+                p = p.Replace("feet", string.Empty).Replace("ft", string.Empty).Trim();
+                return double.TryParse(p, out var val) ? val : 0;
+            }
+
+            widthFeet = ParseOne(parts[0]);
+            heightFeet = ParseOne(parts[1]);
         }
     }
 }

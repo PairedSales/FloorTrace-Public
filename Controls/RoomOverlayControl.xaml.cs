@@ -20,13 +20,11 @@ namespace FloorTrace.Controls
         public static readonly DependencyProperty YProperty = DependencyProperty.Register("Y", typeof(double), typeof(RoomOverlayControl), new PropertyMetadata(0.0, OnPosChanged));
         public static readonly DependencyProperty OverlayWidthProperty = DependencyProperty.Register("OverlayWidth", typeof(double), typeof(RoomOverlayControl), new PropertyMetadata(100.0, OnSizeChanged));
         public static readonly DependencyProperty OverlayHeightProperty = DependencyProperty.Register("OverlayHeight", typeof(double), typeof(RoomOverlayControl), new PropertyMetadata(80.0, OnSizeChanged));
-        public static readonly DependencyProperty DimensionsTextProperty = DependencyProperty.Register("DimensionsText", typeof(string), typeof(RoomOverlayControl), new PropertyMetadata(string.Empty, OnDimTextChanged));
 
         public double X { get => (double)GetValue(XProperty); set => SetValue(XProperty, value); }
         public double Y { get => (double)GetValue(YProperty); set => SetValue(YProperty, value); }
         public double OverlayWidth { get => (double)GetValue(OverlayWidthProperty); set => SetValue(OverlayWidthProperty, value); }
         public double OverlayHeight { get => (double)GetValue(OverlayHeightProperty); set => SetValue(OverlayHeightProperty, value); }
-        public string DimensionsText { get => (string)GetValue(DimensionsTextProperty); set => SetValue(DimensionsTextProperty, value); }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
@@ -35,9 +33,7 @@ namespace FloorTrace.Controls
             Width = OverlayWidth;
             Height = OverlayHeight;
 
-            DimensionText.Text = DimensionsText;
-
-            // Drag move
+            // Move handler
             MoveThumb.DragDelta += (s, args) =>
             {
                 X += args.HorizontalChange;
@@ -52,9 +48,6 @@ namespace FloorTrace.Controls
             TopRight.DragDelta += (s, args) => ResizeFromCorner(args, +1, -1);
             BottomLeft.DragDelta += (s, args) => ResizeFromCorner(args, -1, +1);
             BottomRight.DragDelta += (s, args) => ResizeFromCorner(args, +1, +1);
-
-            DimensionText.LostFocus += (s, args) => DimensionsText = DimensionText.Text;
-            DimensionText.TextChanged += (s, args) => OnOverlayChanged();
         }
 
         private void ResizeFromCorner(DragDeltaEventArgs args, int xSign, int ySign)
@@ -95,14 +88,6 @@ namespace FloorTrace.Controls
             }
         }
 
-        private static void OnDimTextChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-        {
-            if (d is RoomOverlayControl c)
-            {
-                c.DimensionText.Text = c.DimensionsText;
-                c.OnOverlayChanged();
-            }
-        }
 
         private void OnOverlayChanged()
         {

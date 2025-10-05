@@ -6,24 +6,21 @@
              mc:Ignorable="d"
              d:DesignHeight="100" d:DesignWidth="160" IsHitTestVisible="True">
     <Grid>
-        <Rectangle Stroke="#66FF9800" StrokeThickness="3" Fill="#11FF9800" RadiusX="2" RadiusY="2"/>
-        <TextBox x:Name="DimensionText"
-                 Width="120" Height="24"
-                 Margin="6" VerticalAlignment="Top" HorizontalAlignment="Left"
-                 Background="#CCFFFFFF" BorderBrush="#FF666666" BorderThickness="1"/>
+        <!-- Green transparent room overlay -->
+        <Rectangle Stroke="#FF00FF00" StrokeThickness="3" Fill="#3000FF00" RadiusX="2" RadiusY="2"/>
 
-        <!-- Move thumb -->
-        <Thumb x:Name="MoveThumb" Cursor="SizeAll" Background="Transparent"/>
+        <!-- Move thumb for dragging the overlay -->
+        <Thumb x:Name="MoveThumb" Cursor="SizeAll" Background="Transparent" Opacity="0"/>
 
-        <!-- Corner thumbs -->
+        <!-- Corner thumbs for resizing -->
         <Canvas>
-            <Thumb x:Name="TopLeft" Width="10" Height="10" Background="#FF2196F3" Cursor="SizeNWSE"
+            <Thumb x:Name="TopLeft" Width="10" Height="10" Background="#FF00FF00" Cursor="SizeNWSE"
                    Canvas.Left="-5" Canvas.Top="-5"/>
-            <Thumb x:Name="TopRight" Width="10" Height="10" Background="#FF2196F3" Cursor="SizeNESW"
+            <Thumb x:Name="TopRight" Width="10" Height="10" Background="#FF00FF00" Cursor="SizeNESW"
                    Canvas.Right="-5" Canvas.Top="-5"/>
-            <Thumb x:Name="BottomLeft" Width="10" Height="10" Background="#FF2196F3" Cursor="SizeNESW"
+            <Thumb x:Name="BottomLeft" Width="10" Height="10" Background="#FF00FF00" Cursor="SizeNESW"
                    Canvas.Left="-5" Canvas.Bottom="-5"/>
-            <Thumb x:Name="BottomRight" Width="10" Height="10" Background="#FF2196F3" Cursor="SizeNWSE"
+            <Thumb x:Name="BottomRight" Width="10" Height="10" Background="#FF00FF00" Cursor="SizeNWSE"
                    Canvas.Right="-5" Canvas.Bottom="-5"/>
         </Canvas>
     </Grid>
