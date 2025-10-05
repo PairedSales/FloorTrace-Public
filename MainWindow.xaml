@@ -27,7 +27,7 @@
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                 <Button Content="Load Image" Style="{StaticResource ButtonStyle}" Command="{Binding LoadImageCommand}"/>
                 <Button Content="Paste Image" Style="{StaticResource ButtonStyle}" Command="{Binding PasteImageCommand}"/>
-                <Button Content="Detect Rooms" Style="{StaticResource ButtonStyle}" Command="{Binding DetectRoomsCommand}"/>
+                <Button Content="Detect Room" Style="{StaticResource ButtonStyle}" Command="{Binding DetectRoomCommand}"/>
                 <Button Content="Use Selected Room for Scale" Style="{StaticResource ButtonStyle}" Command="{Binding SetScaleCommand}"/>
                 <Button Content="Trace Perimeter" Style="{StaticResource ButtonStyle}" Command="{Binding TracePerimeterCommand}"/>
                 <Button Content="Calculate Area" Style="{StaticResource ButtonStyle}" Command="{Binding CalculateAreaCommand}"/>

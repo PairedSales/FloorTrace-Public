@@ -24,16 +24,28 @@ namespace FloorTrace.Services
                 // TODO: Implement OCR-based room detection
                 // This would use Windows.Media.Ocr or similar to detect text
                 // and parse room dimensions using regex patterns
-                
+
                 var rooms = new List<Room>();
-                
-                // Placeholder implementation
+
+                // Placeholder implementation for a single room
                 // In reality, this would:
                 // 1. Use OCR to extract text from the image
                 // 2. Use regex to find dimension patterns like "12x15", "12'x15'", etc.
                 // 3. Determine room boundaries based on text positioning
-                // 4. Create Room objects with bounds and dimensions
+                // 4. Create a single Room object with bounds and dimensions
                 
+                // Creating a dummy room for now
+                rooms.Add(new Room
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Name = "Detected Room",
+                    Bounds = new System.Drawing.RectangleF(50, 50, 200, 150), // Dummy bounds
+                    Dimensions = "10x12", // Dummy dimensions
+                    WidthFeet = 10.0,
+                    HeightFeet = 12.0,
+                    IsSelected = true
+                });
+
                 return rooms;
             });
         }

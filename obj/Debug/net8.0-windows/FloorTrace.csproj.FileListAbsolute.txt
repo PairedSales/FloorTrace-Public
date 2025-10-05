@@ -31,3 +31,5 @@ C:\Users\jeffh\Coding Projects\FloorTrace\bin\Debug\net8.0-windows\runtimes\linu
 C:\Users\jeffh\Coding Projects\FloorTrace\bin\Debug\net8.0-windows\runtimes\linux-arm64\native\libSkiaSharp.so
 C:\Users\jeffh\Coding Projects\FloorTrace\bin\Debug\net8.0-windows\runtimes\linux-musl-x64\native\libSkiaSharp.so
 C:\Users\jeffh\Coding Projects\FloorTrace\bin\Debug\net8.0-windows\runtimes\linux-x64\native\libSkiaSharp.so
+C:\Users\jeffh\Coding Projects\FloorTrace\obj\Debug\net8.0-windows\Controls\RoomOverlayControl.baml
+C:\Users\jeffh\Coding Projects\FloorTrace\obj\Debug\net8.0-windows\Controls\RoomOverlayControl.g.cs

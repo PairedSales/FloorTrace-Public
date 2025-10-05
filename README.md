@@ -28,11 +28,11 @@
    - The image will appear in the canvas area
 
 2. **Set Scale**
-   - Click "Detect Rooms" to automatically detect the rooms for scaling
-   - The app will analyze the image and add transparent overlays to the detected rooms
-   - The overlays will show the detected room dimensions
-   - The user will be able to modify the overlay's size and placement along with the room dimensions
-   - The user will select a room and click "Use Selected Room for Scale" button to finalize
+   - Click "Detect Room" to automatically detect the first room for scaling.
+   - The app will analyze the image and add a transparent overlay to the detected room.
+   - The overlay will show the detected room dimensions.
+   - The user will be able to modify the overlay's size and placement along with the room dimensions.
+   - The user will select a room (the first one detected) and click "Use Selected Room for Scale" button to finalize.
 
 3. **Trace Perimeter**
    - The "Trace Perimeter" button automatically finds the exterior edges or curves
@@ -100,10 +100,10 @@ FloorTrace follows the **MVVM (Model-View-ViewModel)** pattern for clean separat
 - Thumbnail generation for sketch previews
 
 #### Scale Calculation Service
-- Scans the sketch for room dimensions and room locations
-- Overlays the rooms with the read room dimensions
+- Scans the sketch for the first room dimensions and location
+- Overlays the first room with the read room dimensions
 - Manual Room overlay modification capability
-- Supports multiple rooms
+- Currently supports only a single room, but designed for future multi-room support
 - Sets the pixels-per-foot scale based on the user selected room
 
 #### Area Calculation Service

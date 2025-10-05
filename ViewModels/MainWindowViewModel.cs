@@ -20,7 +20,8 @@ namespace FloorTrace.ViewModels
         private readonly IAreaCalculationService _areaCalculationService;
         private readonly IStorageService _storageService;
         
-        private Sketch _currentSketch;
+        [ObservableProperty]
+        private Sketch currentSketch;
         private BitmapImage _currentImage;
         private ObservableCollection<Sketch> _priorSketches;
 
@@ -38,7 +39,7 @@ namespace FloorTrace.ViewModels
             _areaCalculationService = areaCalculationService;
             _storageService = storageService;
             
-            _currentSketch = new Sketch();
+            CurrentSketch = new Sketch();
             PriorSketches = new ObservableCollection<Sketch>();
             
             LoadPriorSketches();
@@ -80,7 +81,7 @@ namespace FloorTrace.ViewModels
                 System.Diagnostics.Debug.WriteLine($"Thumbnail created: {thumbnail?.PixelWidth}x{thumbnail?.PixelHeight}");
                 
                 // Update current sketch
-                _currentSketch = new Sketch
+                CurrentSketch = new Sketch
                 {
                     Name = $"Pasted Image {DateTime.Now:yyyy-MM-dd HH:mm}",
                     ImagePath = "Clipboard", // Special indicator for pasted images
@@ -119,7 +120,7 @@ namespace FloorTrace.ViewModels
             var thumbnail = await _imageProcessingService.CreateThumbnailAsync(image, 150, 100);
             
             // Update current sketch
-            _currentSketch = new Sketch
+            CurrentSketch = new Sketch
             {
                 Name = Path.GetFileNameWithoutExtension(filePath),
                 ImagePath = filePath,
@@ -140,10 +141,45 @@ namespace FloorTrace.ViewModels
         }
         
         [RelayCommand]
-        public async void DetectRooms()
+        public async void DetectRoom()
         {
-            // Placeholder for room detection logic
-            await Task.Delay(100);
+            if (CurrentImage == null)
+            {
+                // TODO: Show a message to the user that an image needs to be loaded first
+                System.Diagnostics.Debug.WriteLine("No image loaded to detect rooms from.");
+                return;
+            }
+
+            try
+            {
+                // Detect rooms
+                var detectedRooms = await _scaleCalculationService.DetectRoomsAsync(CurrentImage);
+
+                if (detectedRooms.Any())
+                {
+                    // For now, we only care about the first detected room
+                    CurrentSketch.Rooms = detectedRooms;
+                    CurrentSketch.SelectedRoomForScale = detectedRooms.First();
+                    System.Diagnostics.Debug.WriteLine($"Detected room: {CurrentSketch.SelectedRoomForScale.Name} with dimensions {CurrentSketch.SelectedRoomForScale.Dimensions}");
+                    OnPropertyChanged(nameof(CurrentSketch.Rooms));
+                    OnPropertyChanged(nameof(CurrentSketch.SelectedRoomForScale));
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("No rooms detected.");
+                    // Clear any previously detected rooms if none are found now
+                    CurrentSketch.Rooms.Clear();
+                    CurrentSketch.SelectedRoomForScale = null;
+                    OnPropertyChanged(nameof(CurrentSketch.Rooms));
+                    OnPropertyChanged(nameof(CurrentSketch.SelectedRoomForScale));
+                }
+
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error detecting rooms: {ex.Message}");
+                // TODO: Show error dialog to user
+            }
         }
         
         [RelayCommand]
@@ -175,8 +211,8 @@ namespace FloorTrace.ViewModels
             await Task.Delay(100);
             try
             {
-                _currentSketch.IsPermanent = true;
-                _currentSketch.DateModified = DateTime.Now;
+                CurrentSketch.IsPermanent = true;
+                CurrentSketch.DateModified = DateTime.Now;
                 
                 // TODO: Implement saving to storage
                 LoadPriorSketches(); // Refresh the list
@@ -192,11 +228,11 @@ namespace FloorTrace.ViewModels
         
         public BitmapImage CurrentImage => _currentImage;
         
-        public string ScaleText => _currentSketch != null ? $"Scale: {_currentSketch.Scale:F2} px/ft" : "Scale: Not set";
+        public string ScaleText => CurrentSketch != null ? $"Scale: {CurrentSketch.Scale:F2} px/ft" : "Scale: Not set";
         
-        public string SideLengthsText => _currentSketch?.SideLengths.Count > 0 ? $"Side Lengths: {string.Join(", ", _currentSketch.SideLengths.Select(l => $"{l:F2} ft"))}" : "Side Lengths: N/A";
+        public string SideLengthsText => CurrentSketch?.SideLengths.Count > 0 ? $"Side Lengths: {string.Join(", ", CurrentSketch.SideLengths.Select(l => $"{l:F2} ft"))}" : "Side Lengths: N/A";
         
-        public string AreaText => _currentSketch != null ? $"Area: {_currentSketch.AreaSquareFeet:F2} sq ft" : "Area: N/A";
+        public string AreaText => CurrentSketch != null ? $"Area: {CurrentSketch.AreaSquareFeet:F2} sq ft" : "Area: N/A";
         
         // Private methods
         private void LoadPriorSketches()
