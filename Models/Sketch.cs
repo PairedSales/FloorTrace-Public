@@ -25,7 +25,7 @@ namespace FloorTrace.Models
         
         // Image data
         public string ImagePath { get; set; } = string.Empty;
-        public BitmapImage Thumbnail { get; set; }
+        public BitmapImage? Thumbnail { get; set; }
         
         // Analysis results
         public double Scale { get; set; } = 1.0; // pixels per foot
@@ -35,7 +35,7 @@ namespace FloorTrace.Models
         public List<double> SideLengths { get; set; } = new List<double>();
         
         // Selected room for scale calculation
-        public Room SelectedRoomForScale { get; set; }
+        public Room? SelectedRoomForScale { get; set; }
         
         // Workflow state
         public WorkflowState CurrentState { get; set; } = WorkflowState.NoImage;

@@ -10,11 +10,14 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FloorTrace.Models;
 using FloorTrace.Services;
+using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 
 namespace FloorTrace.ViewModels
 {
     public partial class MainWindowViewModel : ObservableObject
     {
+        private readonly ILogger<MainWindowViewModel> _logger;
         private readonly IImageProcessingService _imageProcessingService;
         private readonly IScaleCalculationService _scaleCalculationService;
         private readonly IAreaCalculationService _areaCalculationService;
@@ -22,25 +25,27 @@ namespace FloorTrace.ViewModels
         
         [ObservableProperty]
         private Sketch currentSketch;
-        private BitmapImage _currentImage;
-        private ObservableCollection<Sketch> _priorSketches;
+        private BitmapImage? _currentImage;
+        private ObservableCollection<Sketch> _priorSketches = new();
 
         [ObservableProperty]
         private bool isResultsPanelVisible = false;
         
         public MainWindowViewModel(
+            ILogger<MainWindowViewModel> logger,
             IImageProcessingService imageProcessingService,
             IScaleCalculationService scaleCalculationService,
             IAreaCalculationService areaCalculationService,
             IStorageService storageService)
         {
+            _logger = logger;
             _imageProcessingService = imageProcessingService;
             _scaleCalculationService = scaleCalculationService;
             _areaCalculationService = areaCalculationService;
             _storageService = storageService;
             
             CurrentSketch = new Sketch();
-            PriorSketches = new ObservableCollection<Sketch>();
+            PriorSketches = _priorSketches;
             
             LoadPriorSketches();
         }
@@ -61,7 +66,7 @@ namespace FloorTrace.ViewModels
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error loading image: {ex.Message}");
+                _logger.LogError(ex, "Error loading image");
                 // TODO: Show error dialog to user
             }
         }
@@ -71,15 +76,15 @@ namespace FloorTrace.ViewModels
         {
             try
             {
-                System.Diagnostics.Debug.WriteLine("PasteImage command started");
+                _logger.LogInformation("PasteImage command started");
                 
                 // Load the image from clipboard
                 var image = await _imageProcessingService.LoadImageFromClipboardAsync();
-                System.Diagnostics.Debug.WriteLine($"Image loaded from clipboard: {image?.PixelWidth}x{image?.PixelHeight}");
+                _logger.LogInformation("Image loaded from clipboard: {Width}x{Height}", image?.PixelWidth, image?.PixelHeight);
                 
                 // Create thumbnail for the sidebar
-                var thumbnail = await _imageProcessingService.CreateThumbnailAsync(image, 150, 100);
-                System.Diagnostics.Debug.WriteLine($"Thumbnail created: {thumbnail?.PixelWidth}x{thumbnail?.PixelHeight}");
+                var thumbnail = image != null ? await _imageProcessingService.CreateThumbnailAsync(image, 150, 100) : null;
+                _logger.LogInformation("Thumbnail created: {Width}x{Height}", thumbnail?.PixelWidth, thumbnail?.PixelHeight);
                 
                 // Update current sketch
                 CurrentSketch = new Sketch
@@ -94,7 +99,7 @@ namespace FloorTrace.ViewModels
                 
                 // Store the full image for display
                 _currentImage = image;
-                System.Diagnostics.Debug.WriteLine("Image stored in _currentImage");
+                _logger.LogDebug("Image stored in _currentImage");
                 
                 // Notify UI of changes
                 OnPropertyChanged(nameof(CurrentImage));
@@ -103,12 +108,11 @@ namespace FloorTrace.ViewModels
                 OnPropertyChanged(nameof(AreaText));
                 OnPropertyChanged(nameof(IsResultsPanelVisible));
                 
-                System.Diagnostics.Debug.WriteLine("PasteImage command completed successfully");
+                _logger.LogInformation("PasteImage command completed successfully");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error pasting image: {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+                _logger.LogError(ex, "Error pasting image");
                 // TODO: Show error dialog to user
             }
         }
@@ -149,7 +153,7 @@ namespace FloorTrace.ViewModels
             if (CurrentImage == null)
             {
                 // TODO: Show a message to the user that an image needs to be loaded first
-                System.Diagnostics.Debug.WriteLine("No image loaded to detect rooms from.");
+                _logger.LogWarning("No image loaded to detect rooms from.");
                 return;
             }
 
@@ -164,13 +168,13 @@ namespace FloorTrace.ViewModels
                     CurrentSketch.Rooms = detectedRooms;
                     CurrentSketch.SelectedRoomForScale = detectedRooms.First();
                     CurrentSketch.CurrentState = WorkflowState.RoomDetected;
-                    System.Diagnostics.Debug.WriteLine($"Detected room: {CurrentSketch.SelectedRoomForScale.Name} with dimensions {CurrentSketch.SelectedRoomForScale.Dimensions}");
+                    _logger.LogInformation("Detected room: {Room} with dimensions {Dims}", CurrentSketch.SelectedRoomForScale.Name, CurrentSketch.SelectedRoomForScale.Dimensions);
                     OnPropertyChanged(nameof(CurrentSketch.Rooms));
                     OnPropertyChanged(nameof(CurrentSketch.SelectedRoomForScale));
                 }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine("No rooms detected.");
+                    _logger.LogInformation("No rooms detected.");
                     // Clear any previously detected rooms if none are found now
                     CurrentSketch.Rooms.Clear();
                     CurrentSketch.SelectedRoomForScale = null;
@@ -181,7 +185,7 @@ namespace FloorTrace.ViewModels
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error detecting rooms: {ex.Message}");
+                _logger.LogError(ex, "Error detecting rooms");
                 // TODO: Show error dialog to user
             }
         }
@@ -193,7 +197,7 @@ namespace FloorTrace.ViewModels
             {
                 if (CurrentImage == null || CurrentSketch?.SelectedRoomForScale == null)
                 {
-                    System.Diagnostics.Debug.WriteLine("Cannot set scale: no image or no selected room.");
+                    _logger.LogWarning("Cannot set scale: no image or no selected room.");
                     return;
                 }
 
@@ -204,7 +208,7 @@ namespace FloorTrace.ViewModels
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error setting scale: {ex.Message}");
+                _logger.LogError(ex, "Error setting scale");
             }
         }
         
@@ -213,7 +217,7 @@ namespace FloorTrace.ViewModels
         {
             if (CurrentImage == null)
             {
-                System.Diagnostics.Debug.WriteLine("No image loaded to trace perimeter.");
+                _logger.LogWarning("No image loaded to trace perimeter.");
                 return;
             }
 
@@ -226,14 +230,14 @@ namespace FloorTrace.ViewModels
                 CurrentSketch.PerimeterPoints = perimeterPoints;
                 CurrentSketch.CurrentState = WorkflowState.PerimeterTraced;
                 
-                System.Diagnostics.Debug.WriteLine($"Traced perimeter with {perimeterPoints.Count} points");
+                _logger.LogInformation("Traced perimeter with {Count} points", perimeterPoints.Count);
                 
                 // Notify UI of changes
                 OnPropertyChanged(nameof(CurrentSketch.PerimeterPoints));
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error tracing perimeter: {ex.Message}");
+                _logger.LogError(ex, "Error tracing perimeter");
                 // TODO: Show error dialog to user
             }
         }
@@ -243,13 +247,13 @@ namespace FloorTrace.ViewModels
         {
             if (CurrentSketch?.PerimeterPoints == null || CurrentSketch.PerimeterPoints.Count < 3)
             {
-                System.Diagnostics.Debug.WriteLine("No perimeter points to calculate area.");
+                _logger.LogWarning("No perimeter points to calculate area.");
                 return;
             }
 
             if (CurrentSketch.Scale <= 0)
             {
-                System.Diagnostics.Debug.WriteLine("Scale not set. Cannot calculate area.");
+                _logger.LogWarning("Scale not set. Cannot calculate area.");
                 return;
             }
 
@@ -275,7 +279,7 @@ namespace FloorTrace.ViewModels
                 CurrentSketch.SideLengths = sideLengthsInFeet;
                 CurrentSketch.CurrentState = WorkflowState.AreaCalculated;
                 
-                System.Diagnostics.Debug.WriteLine($"Calculated area: {areaInSquareFeet:F2} sq ft");
+                _logger.LogInformation("Calculated area: {Area:F2} sq ft", areaInSquareFeet);
                 
                 // Update UI
                 OnPropertyChanged(nameof(ScaleText));
@@ -286,7 +290,7 @@ namespace FloorTrace.ViewModels
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error calculating area: {ex.Message}");
+                _logger.LogError(ex, "Error calculating area");
                 // TODO: Show error dialog to user
             }
         }
@@ -315,11 +319,11 @@ namespace FloorTrace.ViewModels
                 OnPropertyChanged(nameof(SideLengthsText));
                 OnPropertyChanged(nameof(AreaText));
                 
-                System.Diagnostics.Debug.WriteLine("Edit Room: Returned to RoomDetected state");
+                _logger.LogInformation("Edit Room: Returned to RoomDetected state");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error in EditRoom: {ex.Message}");
+                _logger.LogError(ex, "Error in EditRoom");
             }
         }
 
@@ -344,11 +348,11 @@ namespace FloorTrace.ViewModels
                 OnPropertyChanged(nameof(SideLengthsText));
                 OnPropertyChanged(nameof(AreaText));
                 
-                System.Diagnostics.Debug.WriteLine("Edit Perimeter: Returned to PerimeterTraced state");
+                _logger.LogInformation("Edit Perimeter: Returned to PerimeterTraced state");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error in EditPerimeter: {ex.Message}");
+                _logger.LogError(ex, "Error in EditPerimeter");
             }
         }
 
@@ -367,7 +371,7 @@ namespace FloorTrace.ViewModels
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error saving sketch: {ex.Message}");
+                _logger.LogError(ex, "Error saving sketch");
             }
         }
         
@@ -382,24 +386,42 @@ namespace FloorTrace.ViewModels
                 // Check if the file exists
                 if (!File.Exists(testImagePath))
                 {
-                    System.Diagnostics.Debug.WriteLine($"Test image not found at: {testImagePath}");
+                _logger.LogWarning("Test image not found at: {Path}", testImagePath);
                     return;
                 }
                 
                 await LoadImageFromPath(testImagePath);
                 IsResultsPanelVisible = false;
-                System.Diagnostics.Debug.WriteLine("Test image loaded successfully");
+            _logger.LogInformation("Test image loaded successfully");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error loading test image: {ex.Message}");
+            _logger.LogError(ex, "Error loading test image");
+            }
+        }
+
+        [RelayCommand]
+        public void OpenLogsFolder()
+        {
+            try
+            {
+                var folder = Environment.ExpandEnvironmentVariables("%LOCALAPPDATA%/FloorTrace/Logs");
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = folder,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to open logs folder");
             }
         }
         
         // Properties
         public ObservableCollection<Sketch> PriorSketches { get; }
         
-        public BitmapImage CurrentImage => _currentImage;
+        public BitmapImage? CurrentImage => _currentImage;
         
         public string ScaleText => CurrentSketch != null ? $"Scale: {CurrentSketch.Scale:F2} px/ft" : "Scale: Not set";
         

@@ -10,6 +10,7 @@ using System.Windows.Media.Imaging;
 using FloorTrace.ViewModels;
 using FloorTrace.Services;
 using FloorTrace.Models;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace FloorTrace
 {
@@ -29,17 +30,31 @@ namespace FloorTrace
             InitializeComponent();
             LoadWindowSettings();
             
-            // Initialize services and ViewModel
-            var imageProcessingService = new ImageProcessingService();
-            var scaleCalculationService = new ScaleCalculationService(imageProcessingService);
-            var areaCalculationService = new AreaCalculationService();
-            var storageService = new StorageService();
-            
-            DataContext = new MainWindowViewModel(
-                imageProcessingService,
-                scaleCalculationService,
-                areaCalculationService,
-                storageService);
+            // Initialize services and ViewModel using DI
+            if (App.AppHost?.Services != null)
+            {
+                var imageProcessingService = App.AppHost.Services.GetRequiredService<Services.IImageProcessingService>();
+                var scaleCalculationService = App.AppHost.Services.GetRequiredService<Services.IScaleCalculationService>();
+                var areaCalculationService = App.AppHost.Services.GetRequiredService<Services.IAreaCalculationService>();
+                var storageService = App.AppHost.Services.GetRequiredService<Services.IStorageService>();
+                
+                DataContext = new ViewModels.MainWindowViewModel(
+                    App.AppHost.Services.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ViewModels.MainWindowViewModel>>(),
+                    imageProcessingService,
+                    scaleCalculationService,
+                    areaCalculationService,
+                    storageService);
+            }
+            else
+            {
+                // Fallback for design time or when DI is not available
+                DataContext = new ViewModels.MainWindowViewModel(
+                    Microsoft.Extensions.Logging.Abstractions.NullLogger<ViewModels.MainWindowViewModel>.Instance,
+                    new Services.ImageProcessingService(),
+                    new Services.ScaleCalculationService(new Services.ImageProcessingService()),
+                    new Services.AreaCalculationService(),
+                    new Services.StorageService(Microsoft.Extensions.Logging.Abstractions.NullLogger<Services.StorageService>.Instance));
+            }
 
             // Add a handler for when a new image is loaded to center it
             var vm = DataContext as MainWindowViewModel;
@@ -87,7 +102,7 @@ namespace FloorTrace
             this.Closing += MainWindow_Closing;
         }
 
-        private void MainWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
         {
             SaveWindowSettings();
         }
@@ -122,13 +137,14 @@ namespace FloorTrace
             {
                 string json = File.ReadAllText(settingsFile);
                 var settings = JsonSerializer.Deserialize<WindowSettings>(json);
+                if (settings == null) return;
 
                 // Add logic to ensure the window is visible on a screen
                 bool isWithinScreenBounds = false;
                 foreach (var screen in System.Windows.Forms.Screen.AllScreens)
                 {
                     var screenBounds = new Rect(screen.WorkingArea.Left, screen.WorkingArea.Top, screen.WorkingArea.Width, screen.WorkingArea.Height);
-                    if (screenBounds.Contains(new System.Windows.Point(settings.Left, settings.Top)))
+                    if (screenBounds.Contains(new System.Windows.Point(settings!.Left, settings.Top)))
                     {
                         isWithinScreenBounds = true;
                         break;
@@ -137,7 +153,7 @@ namespace FloorTrace
 
                 if (isWithinScreenBounds)
                 {
-                    this.Top = settings.Top;
+                    this.Top = settings!.Top;
                     this.Left = settings.Left;
                     this.Height = settings.Height;
                     this.Width = settings.Width;
@@ -378,7 +394,7 @@ namespace FloorTrace
             _perimeterOverlay.PerimeterChanged += (s, e) =>
             {
                 // Sync the perimeter points back to the model
-                vm.CurrentSketch.PerimeterPoints = _perimeterOverlay.GetPoints();
+                vm!.CurrentSketch.PerimeterPoints = _perimeterOverlay.GetPoints();
             };
 
             // Set the overlay to fill the canvas

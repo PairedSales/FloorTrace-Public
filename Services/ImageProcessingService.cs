@@ -165,7 +165,7 @@ namespace FloorTrace.Services
             };
             
             var result = openFileDialog.ShowDialog();
-            return result == true ? openFileDialog.FileName : null;
+            return result == true ? openFileDialog.FileName : string.Empty;
         }
         
         public async Task<List<PointF>> DetectPerimeterAsync(BitmapImage image)

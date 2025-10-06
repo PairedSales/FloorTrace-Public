@@ -131,12 +131,20 @@ FloorTrace follows the **MVVM (Model-View-ViewModel)** pattern for clean separat
 - **WPF (Windows Presentation Foundation)** - UI framework
 - **Microsoft.Toolkit.Mvvm** - MVVM framework for commands and data binding
 - **System.Text.Json** - JSON serialization for data persistence
+- **Microsoft.Extensions.Hosting** - Generic host and dependency injection
+- **Serilog** - Structured logging to rolling log files
 
 ### System Requirements
 - Windows 10/11 (x64)
 - .NET 8.0 Runtime
 - 4GB RAM minimum (8GB recommended)
 - 100MB disk space
+
+## Diagnostics and Logs
+
+- Logs are written to `%LOCALAPPDATA%/FloorTrace/Logs/log-<date>.txt` with daily rolling and 7-day retention.
+- Use the "Open Logs Folder" command (if wired to UI) or browse directly to collect logs for troubleshooting.
+- Unhandled exceptions are captured and logged; the app shows a friendly message.
 
 ## License
 
