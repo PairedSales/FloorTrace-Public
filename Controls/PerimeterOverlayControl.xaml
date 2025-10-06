@@ -6,7 +6,7 @@
              mc:Ignorable="d"
              IsHitTestVisible="True"
              Background="Transparent">
-    <Canvas x:Name="PerimeterCanvas" Background="Transparent">
+    <Canvas x:Name="PerimeterCanvas" Background="Transparent" MouseLeftButtonDown="PerimeterCanvas_MouseLeftButtonDown">
         <!-- Polygon will be added dynamically in code-behind -->
     </Canvas>
 </UserControl>

@@ -30,9 +30,6 @@ namespace FloorTrace.ViewModels
         private Sketch currentSketch;
         private BitmapImage? _currentImage;
         private ObservableCollection<Sketch> _priorSketches = new();
-
-        [ObservableProperty]
-        private bool isResultsPanelVisible = false;
         
         [ObservableProperty]
         private bool isPriorSketchesVisible = false;
@@ -79,7 +76,6 @@ namespace FloorTrace.ViewModels
                     return;
                 
                 await LoadImageFromPathAsync(filePath);
-                IsResultsPanelVisible = false;
                 CurrentSketch.CurrentState = WorkflowState.ImageLoaded;
             }
             catch (Exception ex)
@@ -126,7 +122,6 @@ namespace FloorTrace.ViewModels
                 OnPropertyChanged(nameof(ScaleText));
                 OnPropertyChanged(nameof(SideLengthsText));
                 OnPropertyChanged(nameof(AreaText));
-                OnPropertyChanged(nameof(IsResultsPanelVisible));
                 
                 _logger.LogInformation("PasteImage command completed successfully");
             }
@@ -173,7 +168,6 @@ namespace FloorTrace.ViewModels
             OnPropertyChanged(nameof(ScaleText));
             OnPropertyChanged(nameof(SideLengthsText));
             OnPropertyChanged(nameof(AreaText));
-            OnPropertyChanged(nameof(IsResultsPanelVisible));
         }
         
         [RelayCommand]
@@ -251,6 +245,9 @@ namespace FloorTrace.ViewModels
                 CurrentSketch.Scale = scale;
                 OnPropertyChanged(nameof(ScaleText));
                 _logger.LogInformation("Scale calculated to {Scale:F2} px/ft", scale);
+                
+                // Auto-calculate area when scale changes
+                await TryAutoCalculateAreaAsync();
             }
             catch (Exception ex)
             {
@@ -322,6 +319,35 @@ namespace FloorTrace.ViewModels
                 return;
             }
 
+            await TryAutoCalculateAreaAsync();
+        }
+        
+        public async Task TryAutoCalculateAreaAsync()
+        {
+            // Silently calculate area if prerequisites are met
+            if (CurrentSketch?.PerimeterPoints == null || CurrentSketch.PerimeterPoints.Count < 3)
+            {
+                // Not enough perimeter points, reset area to 0
+                if (CurrentSketch != null)
+                {
+                    CurrentSketch.AreaSquareFeet = 0.0;
+                    CurrentSketch.SideLengths.Clear();
+                    OnPropertyChanged(nameof(AreaText));
+                    OnPropertyChanged(nameof(SideLengthsText));
+                }
+                return;
+            }
+
+            if (CurrentSketch.Scale <= 0)
+            {
+                // Scale not set, reset area to 0
+                CurrentSketch.AreaSquareFeet = 0.0;
+                CurrentSketch.SideLengths.Clear();
+                OnPropertyChanged(nameof(AreaText));
+                OnPropertyChanged(nameof(SideLengthsText));
+                return;
+            }
+
             try
             {
                 // Calculate area in pixels using Green's theorem
@@ -344,87 +370,24 @@ namespace FloorTrace.ViewModels
                 CurrentSketch.SideLengths = sideLengthsInFeet;
                 CurrentSketch.CurrentState = WorkflowState.AreaCalculated;
                 
-                _logger.LogInformation("Calculated area: {Area:F2} sq ft", areaInSquareFeet);
+                _logger.LogInformation("Auto-calculated area: {Area:F2} sq ft", areaInSquareFeet);
                 
                 // Update UI
                 OnPropertyChanged(nameof(ScaleText));
                 OnPropertyChanged(nameof(SideLengthsText));
                 OnPropertyChanged(nameof(AreaText));
                 OnPropertyChanged(nameof(CurrentSketch.CurrentState));
-                IsResultsPanelVisible = true;
                 
                 // Auto-save after area calculated
                 await AutoSaveSketchAsync();
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error calculating area");
-                await _dialogService.ShowErrorAsync(
-                    "Failed to calculate the area. Please verify the perimeter is correctly traced.",
-                    "Area Calculation Error");
+                _logger.LogError(ex, "Error auto-calculating area");
+                // Silently fail for auto-calculation
             }
         }
         
-        [RelayCommand]
-        public void EditRoom()
-        {
-            try
-            {
-                if (CurrentSketch == null)
-                    return;
-
-                // Return to RoomDetected state
-                CurrentSketch.CurrentState = WorkflowState.RoomDetected;
-                IsResultsPanelVisible = false;
-                
-                // Clear perimeter and area data
-                CurrentSketch.PerimeterPoints.Clear();
-                CurrentSketch.AreaSquareFeet = 0.0;
-                CurrentSketch.SideLengths.Clear();
-                
-                // Notify UI
-                OnPropertyChanged(nameof(CurrentSketch.CurrentState));
-                OnPropertyChanged(nameof(CurrentSketch.PerimeterPoints));
-                OnPropertyChanged(nameof(ScaleText));
-                OnPropertyChanged(nameof(SideLengthsText));
-                OnPropertyChanged(nameof(AreaText));
-                
-                _logger.LogInformation("Edit Room: Returned to RoomDetected state");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error in EditRoom");
-            }
-        }
-
-        [RelayCommand]
-        public void EditPerimeter()
-        {
-            try
-            {
-                if (CurrentSketch == null)
-                    return;
-
-                // Return to PerimeterTraced state
-                CurrentSketch.CurrentState = WorkflowState.PerimeterTraced;
-                IsResultsPanelVisible = false;
-                
-                // Clear area data but keep perimeter
-                CurrentSketch.AreaSquareFeet = 0.0;
-                CurrentSketch.SideLengths.Clear();
-                
-                // Notify UI
-                OnPropertyChanged(nameof(CurrentSketch.CurrentState));
-                OnPropertyChanged(nameof(SideLengthsText));
-                OnPropertyChanged(nameof(AreaText));
-                
-                _logger.LogInformation("Edit Perimeter: Returned to PerimeterTraced state");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error in EditPerimeter");
-            }
-        }
 
         private async Task AutoSaveSketchAsync()
         {
@@ -497,9 +460,6 @@ namespace FloorTrace.ViewModels
                 OnPropertyChanged(nameof(CurrentSketch.PerimeterPoints));
                 OnPropertyChanged(nameof(CurrentSketch.CurrentState));
                 
-                // Show results panel if area was calculated
-                IsResultsPanelVisible = CurrentSketch.CurrentState == WorkflowState.AreaCalculated;
-                
                 _logger.LogInformation("Loaded sketch {SketchId}", sketchId);
             }
             catch (Exception ex)
@@ -530,7 +490,6 @@ namespace FloorTrace.ViewModels
                 }
                 
                 await LoadImageFromPathAsync(testImagePath);
-                IsResultsPanelVisible = false;
                 _logger.LogInformation("Test image loaded successfully");
             }
             catch (Exception ex)
@@ -575,7 +534,7 @@ namespace FloorTrace.ViewModels
         
         public string SideLengthsText => CurrentSketch?.SideLengths.Count > 0 ? $"Side Lengths: {string.Join(", ", CurrentSketch.SideLengths.Select(l => $"{l:F2} ft"))}" : "Side Lengths: N/A";
         
-        public string AreaText => CurrentSketch != null ? $"Area: {CurrentSketch.AreaSquareFeet:F2} sq ft" : "Area: N/A";
+        public string AreaText => CurrentSketch != null ? $"{CurrentSketch.AreaSquareFeet:F2} sq ft" : "0 sq ft";
         
         // Private methods
         private async Task LoadPriorSketchesAsync()

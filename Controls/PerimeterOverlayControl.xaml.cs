@@ -206,6 +206,40 @@ namespace FloorTrace.Controls
             }
         }
 
+        private void PerimeterCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (!_isEditable)
+                return;
+
+            // Only handle clicks that target the canvas itself (not vertices or polygon)
+            if (e.OriginalSource is not Canvas)
+                return;
+
+            // Require double-click to add a point
+            if (!(e.ClickCount == 2 && e.LeftButton == MouseButtonState.Pressed))
+                return;
+
+            var position = e.GetPosition(PerimeterCanvas);
+
+            if (_points == null || _points.Count < 3)
+            {
+                // Build up points until we have a valid polygon
+                _points.Add(new PointF((float)position.X, (float)position.Y));
+                RenderPerimeter();
+                OnPerimeterChanged();
+                e.Handled = true;
+                return;
+            }
+
+            // Insert at the closest edge to the click position
+            int insertIndex = FindClosestEdge(new PointF((float)position.X, (float)position.Y));
+            _points.Insert(insertIndex + 1, new PointF((float)position.X, (float)position.Y));
+
+            RenderPerimeter();
+            OnPerimeterChanged();
+            e.Handled = true;
+        }
+
         private int FindClosestEdge(PointF point)
         {
             double minDistance = double.MaxValue;
