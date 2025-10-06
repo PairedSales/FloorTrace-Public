@@ -3,6 +3,7 @@ using System.Data;
 using System.Windows;
 using System;
 using System.Threading.Tasks;
+using System.Windows.Media;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -17,6 +18,8 @@ namespace FloorTrace
     public partial class App : System.Windows.Application
     {
         public static IHost AppHost { get; private set; } = null!;
+        
+        public static bool IsDarkMode { get; private set; } = true; // Default to dark mode
 
         public App()
         {
@@ -62,6 +65,13 @@ namespace FloorTrace
             // Start the host
             await AppHost.StartAsync();
             
+            // Load theme preference from configuration
+            var configuration = AppHost.Services.GetRequiredService<IConfiguration>();
+            IsDarkMode = configuration.GetValue<bool>("ApplicationSettings:IsDarkMode", true);
+            
+            // Apply initial theme
+            ApplyTheme(IsDarkMode);
+            
             // Get MainWindow from DI container and show it
             var mainWindow = AppHost.Services.GetRequiredService<MainWindow>();
             mainWindow.Show();
@@ -98,6 +108,90 @@ namespace FloorTrace
                 Log.Logger.Error(exArgs.Exception, "UnobservedTaskException");
                 exArgs.SetObserved();
             };
+        }
+
+        /// <summary>
+        /// Applies the specified theme by updating all color resources
+        /// </summary>
+        /// <param name="isDarkMode">True for dark mode, false for light mode</param>
+        public static void ApplyTheme(bool isDarkMode)
+        {
+            IsDarkMode = isDarkMode;
+            
+            var resources = Current.Resources;
+            
+            if (isDarkMode)
+            {
+                // Apply dark mode colors
+                resources["Primary"] = resources["PrimaryDark"];
+                resources["PrimaryContainer"] = resources["PrimaryContainerDark"];
+                resources["OnPrimary"] = resources["OnPrimaryDark"];
+                resources["OnPrimaryContainer"] = resources["OnPrimaryContainerDark"];
+                
+                resources["Secondary"] = resources["SecondaryDark"];
+                resources["SecondaryContainer"] = resources["SecondaryContainerDark"];
+                resources["OnSecondary"] = resources["OnSecondaryDark"];
+                resources["OnSecondaryContainer"] = resources["OnSecondaryContainerDark"];
+                
+                resources["Tertiary"] = resources["TertiaryDark"];
+                resources["TertiaryContainer"] = resources["TertiaryContainerDark"];
+                resources["OnTertiary"] = resources["OnTertiaryDark"];
+                resources["OnTertiaryContainer"] = resources["OnTertiaryContainerDark"];
+                
+                resources["Surface"] = resources["SurfaceDark"];
+                resources["SurfaceVariant"] = resources["SurfaceVariantDark"];
+                resources["Background"] = resources["BackgroundDark"];
+                resources["OnSurface"] = resources["OnSurfaceDark"];
+                resources["OnSurfaceVariant"] = resources["OnSurfaceVariantDark"];
+                resources["Outline"] = resources["OutlineDark"];
+                resources["OutlineVariant"] = resources["OutlineVariantDark"];
+                
+                resources["HoverOverlay"] = resources["HoverOverlayDark"];
+                resources["PressedOverlay"] = resources["PressedOverlayDark"];
+                resources["FocusOverlay"] = resources["FocusOverlayDark"];
+                
+                resources["Elevation1"] = resources["Elevation1Dark"];
+                resources["Elevation2"] = resources["Elevation2Dark"];
+                resources["Elevation3"] = resources["Elevation3Dark"];
+                resources["Elevation4"] = resources["Elevation4Dark"];
+                resources["Elevation5"] = resources["Elevation5Dark"];
+            }
+            else
+            {
+                // Apply light mode colors (reset to original values)
+                resources["Primary"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3F51B5"));
+                resources["PrimaryContainer"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E8EAF6"));
+                resources["OnPrimary"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFFFFF"));
+                resources["OnPrimaryContainer"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1A237E"));
+                
+                resources["Secondary"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2196F3"));
+                resources["SecondaryContainer"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E3F2FD"));
+                resources["OnSecondary"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFFFFF"));
+                resources["OnSecondaryContainer"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0D47A1"));
+                
+                resources["Tertiary"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#009688"));
+                resources["TertiaryContainer"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E0F2F1"));
+                resources["OnTertiary"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFFFFF"));
+                resources["OnTertiaryContainer"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#004D40"));
+                
+                resources["Surface"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FAFAFA"));
+                resources["SurfaceVariant"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EEEEEE"));
+                resources["Background"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFFFFF"));
+                resources["OnSurface"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#212121"));
+                resources["OnSurfaceVariant"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#616161"));
+                resources["Outline"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#BDBDBD"));
+                resources["OutlineVariant"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E0E0E0"));
+                
+                resources["HoverOverlay"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0A000000"));
+                resources["PressedOverlay"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1A000000"));
+                resources["FocusOverlay"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1F3F51B5"));
+                
+                resources["Elevation1"] = new DropShadowEffect { BlurRadius = 2, ShadowDepth = 1, Opacity = 0.15, Color = Colors.Black };
+                resources["Elevation2"] = new DropShadowEffect { BlurRadius = 4, ShadowDepth = 2, Opacity = 0.18, Color = Colors.Black };
+                resources["Elevation3"] = new DropShadowEffect { BlurRadius = 8, ShadowDepth = 3, Opacity = 0.20, Color = Colors.Black };
+                resources["Elevation4"] = new DropShadowEffect { BlurRadius = 12, ShadowDepth = 4, Opacity = 0.22, Color = Colors.Black };
+                resources["Elevation5"] = new DropShadowEffect { BlurRadius = 16, ShadowDepth = 5, Opacity = 0.24, Color = Colors.Black };
+            }
         }
 
 

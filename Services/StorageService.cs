@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
 using FloorTrace.Models;
 using Microsoft.Extensions.Logging;
+using FloorTrace.Utilities;
 
 namespace FloorTrace.Services
 {
@@ -53,23 +54,25 @@ namespace FloorTrace.Services
                         {
                             var imagePath = Path.Combine(imageDirectory, "image.png");
                             SaveBitmapImageToPng(fullImage, imagePath);
-                            sketch.ImagePath = imagePath;
-                            _logger.LogInformation("Saved full image to {Path}", imagePath);
+                            // Store relative path
+                            sketch.ImagePath = PathUtils.MakeRelativeToAppData(imagePath);
+                            _logger.LogInformation("Saved full image to {Path}", PathUtils.MakeRelativeToAppData(imagePath));
                         }
                         
                         if (thumbnail != null)
                         {
                             var thumbnailPath = Path.Combine(imageDirectory, "thumbnail.png");
                             SaveBitmapImageToPng(thumbnail, thumbnailPath);
-                            sketch.ThumbnailPath = thumbnailPath;
-                            _logger.LogInformation("Saved thumbnail to {Path}", thumbnailPath);
+                            // Store relative path
+                            sketch.ThumbnailPath = PathUtils.MakeRelativeToAppData(thumbnailPath);
+                            _logger.LogInformation("Saved thumbnail to {Path}", PathUtils.MakeRelativeToAppData(thumbnailPath));
                         }
                     }
                     
                     var json = JsonSerializer.Serialize(sketch, _jsonOptions);
                     
                     File.WriteAllText(filePath, json);
-                    _logger.LogInformation("Saved sketch {SketchId} to {Path}", sketch.Id, filePath);
+                    _logger.LogInformation("Saved sketch {SketchId} to {Path}", sketch.Id, PathUtils.MakeRelativeToAppData(filePath));
                 }
                 catch (Exception ex)
                 {
@@ -112,11 +115,25 @@ namespace FloorTrace.Services
                         throw new FileNotFoundException($"Sketch with ID {sketchId} not found");
                     }
                     
-                    // Load thumbnail if path exists
-                    if (!string.IsNullOrEmpty(sketch.ThumbnailPath) && File.Exists(sketch.ThumbnailPath))
+                    // Normalize stored paths to relative
+                    if (!string.IsNullOrEmpty(sketch.ImagePath))
                     {
-                        sketch.Thumbnail = LoadBitmapImageFromFile(sketch.ThumbnailPath);
-                        _logger.LogInformation("Loaded thumbnail from {Path}", sketch.ThumbnailPath);
+                        sketch.ImagePath = PathUtils.MakeRelativeToAppData(sketch.ImagePath);
+                    }
+                    if (!string.IsNullOrEmpty(sketch.ThumbnailPath))
+                    {
+                        sketch.ThumbnailPath = PathUtils.MakeRelativeToAppData(sketch.ThumbnailPath);
+                    }
+
+                    // Load thumbnail if path exists
+                    if (!string.IsNullOrEmpty(sketch.ThumbnailPath))
+                    {
+                        var thumbFull = PathUtils.ResolveToAppData(sketch.ThumbnailPath);
+                        if (File.Exists(thumbFull))
+                        {
+                            sketch.Thumbnail = LoadBitmapImageFromFile(thumbFull);
+                            _logger.LogInformation("Loaded thumbnail from {Path}", PathUtils.MakeRelativeToAppData(thumbFull));
+                        }
                     }
                     
                     return sketch;
@@ -213,7 +230,7 @@ namespace FloorTrace.Services
                         foreach (var file in filesToDelete)
                         {
                             File.Delete(file.Path);
-                            _logger.LogInformation("Cleaned up old sketch file {Path}", file.Path);
+                            _logger.LogInformation("Cleaned up old sketch file {Path}", PathUtils.MakeRelativeToAppData(file.Path));
                             
                             // Delete associated images
                             var imageDirectory = Path.Combine(_imagesDirectory, file.SketchId);
@@ -251,11 +268,17 @@ namespace FloorTrace.Services
                     if (sketch != null)
                     {
                         // Load thumbnail if path exists
-                        if (!string.IsNullOrEmpty(sketch.ThumbnailPath) && File.Exists(sketch.ThumbnailPath))
+                        if (!string.IsNullOrEmpty(sketch.ThumbnailPath))
                         {
                             try
                             {
-                                sketch.Thumbnail = LoadBitmapImageFromFile(sketch.ThumbnailPath);
+                                // Ensure paths are relative and resolve for IO
+                                sketch.ThumbnailPath = PathUtils.MakeRelativeToAppData(sketch.ThumbnailPath);
+                                var thumbFull = PathUtils.ResolveToAppData(sketch.ThumbnailPath);
+                                if (File.Exists(thumbFull))
+                                {
+                                    sketch.Thumbnail = LoadBitmapImageFromFile(thumbFull);
+                                }
                             }
                             catch (Exception thumbEx)
                             {
@@ -263,13 +286,19 @@ namespace FloorTrace.Services
                             }
                         }
                         
+                        // Normalize image path to relative as well
+                        if (!string.IsNullOrEmpty(sketch.ImagePath))
+                        {
+                            sketch.ImagePath = PathUtils.MakeRelativeToAppData(sketch.ImagePath);
+                        }
+
                         sketches.Add(sketch);
                     }
                 }
                 catch (Exception ex)
                 {
                     // Log error but continue loading other sketches
-                    _logger.LogError(ex, "Error loading sketch from {Path}", file);
+                    _logger.LogError(ex, "Error loading sketch from {Path}", PathUtils.MakeRelativeToAppData(file));
                 }
             }
             
@@ -312,17 +341,18 @@ namespace FloorTrace.Services
             {
                 try
                 {
-                    if (string.IsNullOrEmpty(imagePath) || !File.Exists(imagePath))
+                    var resolved = PathUtils.ResolveToAppData(imagePath);
+                    if (string.IsNullOrEmpty(resolved) || !File.Exists(resolved))
                     {
-                        _logger.LogWarning("Image file not found at {Path}", imagePath);
+                        _logger.LogWarning("Image file not found at {Path}", PathUtils.RedactUserPath(imagePath));
                         return null;
                     }
                     
-                    return LoadBitmapImageFromFile(imagePath);
+                    return LoadBitmapImageFromFile(resolved);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to load image from {Path}", imagePath);
+                    _logger.LogError(ex, "Failed to load image from {Path}", PathUtils.RedactUserPath(imagePath));
                     return null;
                 }
             }).ConfigureAwait(false);

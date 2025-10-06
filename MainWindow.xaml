@@ -36,14 +36,16 @@
                 
                 <!-- Left side buttons -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Left">
-                    <Button Content="Load Image" Style="{StaticResource FilledButton}" Command="{Binding LoadImageCommand}"/>
-                    <Button Content="Paste Image" Style="{StaticResource TonalButton}" Command="{Binding PasteImageCommand}"/>
+                    <Button Content="Load Image" Style="{StaticResource TextButton}" Command="{Binding LoadImageCommand}"/>
+                    <Rectangle Width="1" Height="24" Fill="{StaticResource OutlineVariant}" Margin="8,0"/>
+                    <Button Content="Paste Image" Style="{StaticResource TextButton}" Command="{Binding PasteImageCommand}"/>
                 </StackPanel>
                 
                 <!-- Center buttons -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center">
-                    <Button Content="Detect Room" Style="{StaticResource FilledButton}" Command="{Binding DetectRoomCommand}"/>
-                    <Button Content="Trace Perimeter" Style="{StaticResource FilledButton}" Command="{Binding TracePerimeterCommand}"/>
+                    <Button Content="Detect Room" Style="{StaticResource TextButton}" Command="{Binding DetectRoomCommand}"/>
+                    <Rectangle Width="1" Height="24" Fill="{StaticResource OutlineVariant}" Margin="8,0"/>
+                    <Button Content="Trace Perimeter" Style="{StaticResource TextButton}" Command="{Binding TracePerimeterCommand}"/>
                     <CheckBox Content="Use Inner Wall Edge" 
                               Style="{StaticResource MaterialCheckBox}"
                               IsChecked="{Binding UseInnerWallEdge}" 
@@ -57,7 +59,14 @@
                     <!-- Test button - visible only in DEBUG builds -->
                     <Button Content="Test" Style="{StaticResource TextButton}" Command="{Binding LoadTestImageCommand}" x:Name="TestButton"/>
                     <Rectangle Width="1" Height="24" Fill="{StaticResource OutlineVariant}" Margin="8,0"/>
-                    <Button Content="Fit to Window" Style="{StaticResource TonalButton}" Click="FitToWindow_Click"/>
+                    <!-- Theme toggle button -->
+                    <Button Style="{StaticResource TextButton}" 
+                            Command="{Binding ToggleThemeCommand}"
+                            ToolTip="{Binding IsDarkMode, StringFormat={}{0:☀️ Light Mode;🌙 Dark Mode}}">
+                        <TextBlock Text="{Binding IsDarkMode, StringFormat={}{0:☀️;🌙}}" FontSize="16"/>
+                    </Button>
+                    <Rectangle Width="1" Height="24" Fill="{StaticResource OutlineVariant}" Margin="8,0"/>
+                    <Button Content="Fit to Window" Style="{StaticResource TextButton}" Click="FitToWindow_Click"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -131,21 +140,26 @@
                         <StackPanel MinWidth="160">
                             <TextBlock Text="Room Dimensions" 
                                        Style="{StaticResource TitleMedium}"
-                                       Margin="0,0,0,8"/>
+                                       Margin="0,0,0,8"
+                                       HorizontalAlignment="Center"/>
                             <TextBox x:Name="RoomDimensionsTextBox" 
                                      Width="160" 
                                      Height="32" 
                                      Margin="0,0,0,16"
                                      Style="{StaticResource OutlinedTextBox}"
+                                     HorizontalAlignment="Center"
+                                     TextAlignment="Center"
                                      Text="{Binding CurrentSketch.SelectedRoomForScale.Dimensions, UpdateSourceTrigger=PropertyChanged}"/>
                             
                             <TextBlock Text="Area" 
                                        Style="{StaticResource TitleMedium}"
-                                       Margin="0,0,0,4"/>
+                                       Margin="0,0,0,4"
+                                       HorizontalAlignment="Center"/>
                             <TextBlock Text="{Binding AreaText}" 
                                        Style="{StaticResource BodyLarge}"
                                        Foreground="{StaticResource Primary}"
-                                       FontWeight="SemiBold"/>
+                                       FontWeight="SemiBold"
+                                       HorizontalAlignment="Center"/>
                         </StackPanel>
                     </Border>
                 </Grid>

@@ -7,9 +7,9 @@
              d:DesignHeight="100" d:DesignWidth="160" IsHitTestVisible="True">
     <Grid>
         <!-- Material Design 3 Room Overlay with Primary Color -->
-        <Rectangle Stroke="#3F51B5" 
+        <Rectangle Stroke="{DynamicResource Primary}" 
                    StrokeThickness="2" 
-                   Fill="#333F51B5" 
+                   Fill="{DynamicResource Primary}" 
                    RadiusX="8" 
                    RadiusY="8">
             <Rectangle.Effect>
@@ -29,7 +29,7 @@
                    Canvas.Left="-6" Canvas.Top="-6">
                 <Thumb.Template>
                     <ControlTemplate>
-                        <Ellipse Fill="#3F51B5" 
+                        <Ellipse Fill="{DynamicResource Primary}" 
                                  Stroke="White" 
                                  StrokeThickness="2">
                             <Ellipse.Effect>
@@ -47,7 +47,7 @@
                    Canvas.Right="-6" Canvas.Top="-6">
                 <Thumb.Template>
                     <ControlTemplate>
-                        <Ellipse Fill="#3F51B5" 
+                        <Ellipse Fill="{DynamicResource Primary}" 
                                  Stroke="White" 
                                  StrokeThickness="2">
                             <Ellipse.Effect>
@@ -65,7 +65,7 @@
                    Canvas.Left="-6" Canvas.Bottom="-6">
                 <Thumb.Template>
                     <ControlTemplate>
-                        <Ellipse Fill="#3F51B5" 
+                        <Ellipse Fill="{DynamicResource Primary}" 
                                  Stroke="White" 
                                  StrokeThickness="2">
                             <Ellipse.Effect>
@@ -83,7 +83,7 @@
                    Canvas.Right="-6" Canvas.Bottom="-6">
                 <Thumb.Template>
                     <ControlTemplate>
-                        <Ellipse Fill="#3F51B5" 
+                        <Ellipse Fill="{DynamicResource Primary}" 
                                  Stroke="White" 
                                  StrokeThickness="2">
                             <Ellipse.Effect>

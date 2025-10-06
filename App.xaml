@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Application.Resources>
         <!-- Material Design 3 Color System -->
+        <!-- Light Mode Colors (Default) -->
         <!-- Primary Colors (Indigo) -->
         <SolidColorBrush x:Key="Primary" Color="#3F51B5"/>
         <SolidColorBrush x:Key="PrimaryContainer" Color="#E8EAF6"/>
@@ -21,7 +22,7 @@
         <SolidColorBrush x:Key="OnTertiary" Color="#FFFFFF"/>
         <SolidColorBrush x:Key="OnTertiaryContainer" Color="#004D40"/>
         
-        <!-- Surface Colors -->
+        <!-- Surface Colors (Light Mode) -->
         <SolidColorBrush x:Key="Surface" Color="#FAFAFA"/>
         <SolidColorBrush x:Key="SurfaceVariant" Color="#EEEEEE"/>
         <SolidColorBrush x:Key="Background" Color="#FFFFFF"/>
@@ -30,17 +31,57 @@
         <SolidColorBrush x:Key="Outline" Color="#BDBDBD"/>
         <SolidColorBrush x:Key="OutlineVariant" Color="#E0E0E0"/>
         
-        <!-- State Layer Colors -->
+        <!-- Dark Mode Colors -->
+        <!-- Dark Primary Colors -->
+        <SolidColorBrush x:Key="PrimaryDark" Color="#C5CAE9"/>
+        <SolidColorBrush x:Key="PrimaryContainerDark" Color="#3E4784"/>
+        <SolidColorBrush x:Key="OnPrimaryDark" Color="#1A237E"/>
+        <SolidColorBrush x:Key="OnPrimaryContainerDark" Color="#E8EAF6"/>
+        
+        <!-- Dark Secondary Colors -->
+        <SolidColorBrush x:Key="SecondaryDark" Color="#90CAF9"/>
+        <SolidColorBrush x:Key="SecondaryContainerDark" Color="#1E3A5F"/>
+        <SolidColorBrush x:Key="OnSecondaryDark" Color="#0D47A1"/>
+        <SolidColorBrush x:Key="OnSecondaryContainerDark" Color="#E3F2FD"/>
+        
+        <!-- Dark Tertiary Colors -->
+        <SolidColorBrush x:Key="TertiaryDark" Color="#80CBC4"/>
+        <SolidColorBrush x:Key="TertiaryContainerDark" Color="#003D36"/>
+        <SolidColorBrush x:Key="OnTertiaryDark" Color="#004D40"/>
+        <SolidColorBrush x:Key="OnTertiaryContainerDark" Color="#E0F2F1"/>
+        
+        <!-- Dark Surface Colors -->
+        <SolidColorBrush x:Key="SurfaceDark" Color="#1C1B1F"/>
+        <SolidColorBrush x:Key="SurfaceVariantDark" Color="#2B2930"/>
+        <SolidColorBrush x:Key="BackgroundDark" Color="#1C1B1F"/>
+        <SolidColorBrush x:Key="OnSurfaceDark" Color="#E6E1E5"/>
+        <SolidColorBrush x:Key="OnSurfaceVariantDark" Color="#CAC4D0"/>
+        <SolidColorBrush x:Key="OutlineDark" Color="#938F99"/>
+        <SolidColorBrush x:Key="OutlineVariantDark" Color="#49454F"/>
+        
+        <!-- State Layer Colors (Light Mode) -->
         <SolidColorBrush x:Key="HoverOverlay" Color="#0A000000"/>
         <SolidColorBrush x:Key="PressedOverlay" Color="#1A000000"/>
         <SolidColorBrush x:Key="FocusOverlay" Color="#1F3F51B5"/>
         
-        <!-- Material Design 3 Elevation System (Shadows) -->
+        <!-- Dark State Layer Colors -->
+        <SolidColorBrush x:Key="HoverOverlayDark" Color="#0AE6E1E5"/>
+        <SolidColorBrush x:Key="PressedOverlayDark" Color="#1AE6E1E5"/>
+        <SolidColorBrush x:Key="FocusOverlayDark" Color="#1FC5CAE9"/>
+        
+        <!-- Material Design 3 Elevation System (Shadows - Light Mode) -->
         <DropShadowEffect x:Key="Elevation1" BlurRadius="2" ShadowDepth="1" Opacity="0.15" Color="#000000"/>
         <DropShadowEffect x:Key="Elevation2" BlurRadius="4" ShadowDepth="2" Opacity="0.18" Color="#000000"/>
         <DropShadowEffect x:Key="Elevation3" BlurRadius="8" ShadowDepth="3" Opacity="0.20" Color="#000000"/>
         <DropShadowEffect x:Key="Elevation4" BlurRadius="12" ShadowDepth="4" Opacity="0.22" Color="#000000"/>
         <DropShadowEffect x:Key="Elevation5" BlurRadius="16" ShadowDepth="5" Opacity="0.24" Color="#000000"/>
+        
+        <!-- Dark Mode Elevation System (Lighter shadows for dark backgrounds) -->
+        <DropShadowEffect x:Key="Elevation1Dark" BlurRadius="2" ShadowDepth="1" Opacity="0.08" Color="#FFFFFF"/>
+        <DropShadowEffect x:Key="Elevation2Dark" BlurRadius="4" ShadowDepth="2" Opacity="0.12" Color="#FFFFFF"/>
+        <DropShadowEffect x:Key="Elevation3Dark" BlurRadius="8" ShadowDepth="3" Opacity="0.15" Color="#FFFFFF"/>
+        <DropShadowEffect x:Key="Elevation4Dark" BlurRadius="12" ShadowDepth="4" Opacity="0.18" Color="#FFFFFF"/>
+        <DropShadowEffect x:Key="Elevation5Dark" BlurRadius="16" ShadowDepth="5" Opacity="0.20" Color="#FFFFFF"/>
         
         <!-- Material Design 3 Corner Radius -->
         <CornerRadius x:Key="CornerRadiusSmall">8</CornerRadius>
@@ -175,17 +216,20 @@
                                 CornerRadius="{StaticResource CornerRadiusLarge}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="{StaticResource HoverOverlay}"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.38"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource Secondary}"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource OnPrimaryContainer}"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.38"/>
+                </Trigger>
+            </Style.Triggers>
         </Style>
         
         <!-- Default Button Style (use Filled) -->

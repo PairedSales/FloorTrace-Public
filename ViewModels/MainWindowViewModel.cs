@@ -13,6 +13,7 @@ using FloorTrace.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
 using System.Diagnostics;
+using FloorTrace.Utilities;
 
 namespace FloorTrace.ViewModels
 {
@@ -37,10 +38,22 @@ namespace FloorTrace.ViewModels
         [ObservableProperty]
         private bool useInnerWallEdge;
         
+        [ObservableProperty]
+        private bool isDarkMode = true; // Default to dark mode
+        
         partial void OnUseInnerWallEdgeChanged(bool value)
         {
             // Automatically re-trace perimeter when the setting changes
             _ = OnWallEdgePreferenceChangedAsync();
+        }
+        
+        partial void OnIsDarkModeChanged(bool value)
+        {
+            // Apply the theme change immediately
+            App.ApplyTheme(value);
+            
+            // Save the preference
+            _ = SaveThemePreferenceAsync();
         }
         
         public bool IsSavingEnabled { get; }
@@ -68,6 +81,7 @@ namespace FloorTrace.ViewModels
             IsSavingEnabled = _configuration.GetValue<bool>("ApplicationSettings:IsSavingEnabled");
             MaxSavedSketches = _configuration.GetValue<int>("ApplicationSettings:MaxSavedSketches");
             UseInnerWallEdge = _configuration.GetValue<bool>("ApplicationSettings:UseInnerWallEdge", true);
+            IsDarkMode = _configuration.GetValue<bool>("ApplicationSettings:IsDarkMode", true);
             
             CurrentSketch = new Sketch();
             PriorSketches = _priorSketches;
@@ -524,9 +538,9 @@ namespace FloorTrace.ViewModels
                 // Check if the file exists
                 if (!File.Exists(testImagePath))
                 {
-                    _logger.LogWarning("Test image not found at: {Path}", testImagePath);
+                    _logger.LogWarning("Test image not found at: {Path}", PathUtils.RedactUserPath(testImagePath));
                     await _dialogService.ShowWarningAsync(
-                        $"Test image not found at: {testImagePath}",
+                        $"Test image not found at: {PathUtils.RedactUserPath(testImagePath)}",
                         "Test Image Not Found");
                     return;
                 }
@@ -567,6 +581,12 @@ namespace FloorTrace.ViewModels
             IsPriorSketchesVisible = !IsPriorSketchesVisible;
         }
         
+        [RelayCommand]
+        public void ToggleTheme()
+        {
+            IsDarkMode = !IsDarkMode;
+        }
+        
         // Properties
         public ObservableCollection<Sketch> PriorSketches { get; }
         
@@ -576,7 +596,22 @@ namespace FloorTrace.ViewModels
         
         public string SideLengthsText => CurrentSketch?.SideLengths.Count > 0 ? $"Side Lengths: {string.Join(", ", CurrentSketch.SideLengths.Select(l => $"{l:F2} ft"))}" : "Side Lengths: N/A";
         
-        public string AreaText => CurrentSketch != null ? $"{CurrentSketch.AreaSquareFeet:F2} sq ft" : "0 sq ft";
+        public string AreaText
+        {
+            get
+            {
+                if (CurrentSketch == null)
+                    return string.Empty;
+
+                // Treat values <= 0 as not yet calculated
+                if (CurrentSketch.AreaSquareFeet <= 0.0)
+                    return string.Empty;
+
+                // Round to nearest whole number
+                var rounded = Math.Round(CurrentSketch.AreaSquareFeet, 0, MidpointRounding.AwayFromZero);
+                return $"{rounded:0} sq ft";
+            }
+        }
         
         // Private methods
         private async Task LoadPriorSketchesAsync()
@@ -606,6 +641,23 @@ namespace FloorTrace.ViewModels
             {
                 _logger.LogError(ex, "Failed to load prior sketches");
                 // Don't show error dialog here as this runs on startup
+            }
+        }
+        
+        private async Task SaveThemePreferenceAsync()
+        {
+            try
+            {
+                // Note: In a real application, you might want to save this to a separate settings file
+                // or user preferences. For now, we'll just log it.
+                _logger.LogInformation("Theme preference changed to: {Theme}", IsDarkMode ? "Dark" : "Light");
+                
+                // If you want to persist this setting, you could add it to appsettings.json
+                // or create a separate user settings file
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to save theme preference");
             }
         }
     }

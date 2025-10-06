@@ -153,12 +153,12 @@ namespace FloorTrace.Services
                     {
                         encoder.Save(fileStream);
                     }
-                    _logger.LogInformation("Image saved successfully to {FilePath}", filePath);
+                    _logger.LogInformation("Image saved successfully to {FilePath}", PathUtils.RedactUserPath(filePath));
                     return true;
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to save image to {FilePath}", filePath);
+                    _logger.LogError(ex, "Failed to save image to {FilePath}", PathUtils.RedactUserPath(filePath));
                     return false;
                 }
             }).ConfigureAwait(false);
@@ -275,56 +275,137 @@ namespace FloorTrace.Services
         {
             try
             {
-                // Detect wall thickness by sampling points along the contour
-                int wallThickness = DetectWallThickness(contour, grayImage);
-                _logger.LogDebug("Detected wall thickness: {Thickness} pixels", wallThickness);
+                // First, approximate the contour to get clean polygon vertices
+                // This gives us the outer wall edge as a simplified polygon
+                var epsilon = Constants.ContourApproximationEpsilon * Cv2.ArcLength(contour, true);
+                var approxPolygon = Cv2.ApproxPolyDP(contour, epsilon, true);
                 
-                // Create a mask from the contour
-                using var mask = new Mat(imageSize, MatType.CV_8UC1, Scalar.Black);
-                var contourArray = new OpenCvSharp.Point[][] { contour };
-                Cv2.DrawContours(mask, contourArray, 0, Scalar.White, -1);
+                _logger.LogDebug("Approximated outer contour to {Count} vertices for inner edge detection", approxPolygon.Length);
                 
-                // Erode the mask to get the inner edge
-                int erosionSize = Math.Max(1, wallThickness / 2);
-                using var erosionKernel = Cv2.GetStructuringElement(MorphShapes.Ellipse, 
-                    new OpenCvSharp.Size(2 * erosionSize + 1, 2 * erosionSize + 1));
-                using var erodedMask = new Mat();
-                Cv2.Erode(mask, erodedMask, erosionKernel);
-                
-                // Find contours in the eroded mask
-                OpenCvSharp.Point[][] erodedContours;
-                HierarchyIndex[] hierarchy;
-                Cv2.FindContours(erodedMask, out erodedContours, out hierarchy, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
-                
-                // Return the largest eroded contour, or original if erosion failed
-                if (erodedContours.Length > 0)
+                if (approxPolygon.Length < Constants.MinPerimeterPoints)
                 {
-                    var largestErodedContour = erodedContours.OrderByDescending(c => Cv2.ContourArea(c)).First();
+                    _logger.LogWarning("Too few vertices after approximation, using original contour");
+                    return contour;
+                }
+                
+                // Create array for the shifted inner vertices
+                var innerVertices = new OpenCvSharp.Point[approxPolygon.Length];
+                var shiftDistances = new List<int>();
+                
+                // For each vertex, shift inward until we find whitespace
+                for (int i = 0; i < approxPolygon.Length; i++)
+                {
+                    var currentVertex = approxPolygon[i];
                     
-                    // Validate the eroded contour has a reasonable area
-                    double originalArea = Cv2.ContourArea(contour);
-                    double erodedArea = Cv2.ContourArea(largestErodedContour);
+                    // Calculate inward normal direction using adjacent vertices
+                    int prevIdx = (i - 1 + approxPolygon.Length) % approxPolygon.Length;
+                    int nextIdx = (i + 1) % approxPolygon.Length;
                     
-                    // If eroded area is too small (less than 20% of original), use original
-                    if (erodedArea > originalArea * 0.2 && largestErodedContour.Length >= Constants.MinPerimeterPoints)
+                    var prevVertex = approxPolygon[prevIdx];
+                    var nextVertex = approxPolygon[nextIdx];
+                    
+                    // Calculate tangent vector (direction along the polygon edge)
+                    double tangentX = nextVertex.X - prevVertex.X;
+                    double tangentY = nextVertex.Y - prevVertex.Y;
+                    
+                    // Normal is perpendicular to tangent (rotate 90 degrees)
+                    // We want the inward normal, so we'll need to determine the correct direction
+                    double normalX = -tangentY;
+                    double normalY = tangentX;
+                    
+                    // Normalize the normal vector
+                    double normalLength = Math.Sqrt(normalX * normalX + normalY * normalY);
+                    if (normalLength < 0.001)
                     {
-                        _logger.LogDebug("Successfully eroded contour from {OrigArea:F0} to {ErodedArea:F0} pixels", 
-                            originalArea, erodedArea);
-                        return largestErodedContour;
+                        // Degenerate case, keep the vertex unchanged
+                        innerVertices[i] = currentVertex;
+                        continue;
+                    }
+                    
+                    normalX /= normalLength;
+                    normalY /= normalLength;
+                    
+                    // Ensure the normal points inward (toward the centroid of the polygon)
+                    // Calculate centroid
+                    double centroidX = 0;
+                    double centroidY = 0;
+                    foreach (var vertex in approxPolygon)
+                    {
+                        centroidX += vertex.X;
+                        centroidY += vertex.Y;
+                    }
+                    centroidX /= approxPolygon.Length;
+                    centroidY /= approxPolygon.Length;
+                    
+                    // Vector from current vertex to centroid
+                    double toCentroidX = centroidX - currentVertex.X;
+                    double toCentroidY = centroidY - currentVertex.Y;
+                    
+                    // Check if normal points inward (dot product with toCentroid should be positive)
+                    double dotProduct = normalX * toCentroidX + normalY * toCentroidY;
+                    if (dotProduct < 0)
+                    {
+                        // Normal points outward, flip it
+                        normalX = -normalX;
+                        normalY = -normalY;
+                    }
+                    
+                    // Use MeasureThicknessAlongNormal to find distance to whitespace
+                    int shiftDistance = MeasureThicknessAlongNormal(currentVertex, normalX, normalY, grayImage);
+                    
+                    if (shiftDistance > 0)
+                    {
+                        shiftDistances.Add(shiftDistance);
+                        
+                        // Shift the vertex inward by the measured distance
+                        int newX = (int)(currentVertex.X + normalX * shiftDistance);
+                        int newY = (int)(currentVertex.Y + normalY * shiftDistance);
+                        
+                        // Clamp to image bounds
+                        newX = Math.Max(0, Math.Min(imageSize.Width - 1, newX));
+                        newY = Math.Max(0, Math.Min(imageSize.Height - 1, newY));
+                        
+                        innerVertices[i] = new OpenCvSharp.Point(newX, newY);
                     }
                     else
                     {
-                        _logger.LogWarning("Eroded contour too small or invalid, using original contour");
-                        return contour;
+                        // Couldn't find clear wall edge, keep original vertex
+                        innerVertices[i] = currentVertex;
+                        _logger.LogDebug("Could not detect wall thickness at vertex {Index}, keeping original position", i);
                     }
                 }
                 
-                _logger.LogWarning("Failed to erode contour, using original");
-                return contour;
+                // Validate the result
+                double originalArea = Cv2.ContourArea(approxPolygon);
+                double innerArea = Cv2.ContourArea(innerVertices);
+                
+                // Log statistics
+                if (shiftDistances.Count > 0)
+                {
+                    double avgShift = shiftDistances.Average();
+                    double maxShift = shiftDistances.Max();
+                    double minShift = shiftDistances.Min();
+                    _logger.LogDebug("Inner edge detection: avg shift {Avg:F1}px, min {Min}px, max {Max}px, area reduction {AreaReduction:F1}%",
+                        avgShift, minShift, maxShift, (1 - innerArea / originalArea) * 100);
+                }
+                
+                // Validate the inner contour has a reasonable area (at least 20% of original)
+                if (innerArea > originalArea * 0.2 && innerArea < originalArea)
+                {
+                    _logger.LogDebug("Successfully computed inner edge contour from {OrigArea:F0} to {InnerArea:F0} pixels", 
+                        originalArea, innerArea);
+                    return innerVertices;
+                }
+                else
+                {
+                    _logger.LogWarning("Inner edge contour has invalid area ({InnerArea:F0} vs {OrigArea:F0}), using original contour", 
+                        innerArea, originalArea);
+                    return contour;
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error eroding contour for inner edge, using original");
+                _logger.LogError(ex, "Error computing inner edge contour, using original");
                 return contour;
             }
         }
