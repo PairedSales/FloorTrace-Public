@@ -61,13 +61,22 @@ namespace FloorTrace.Controls
             if (_points.Count < 3)
                 return;
 
-            // Create the polygon
+            // Create the polygon with Material Design 3 colors
             _polygon = new Polygon
             {
-                Fill = new SolidColorBrush(System.Windows.Media.Color.FromArgb(48, 0, 120, 215)), // Semi-transparent blue
-                Stroke = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0, 120, 215)), // Blue
+                Fill = new SolidColorBrush(System.Windows.Media.Color.FromArgb(26, 33, 150, 243)), // Semi-transparent Material Blue (#2196F3 at 10% opacity)
+                Stroke = new SolidColorBrush(System.Windows.Media.Color.FromRgb(33, 150, 243)), // Material Design Secondary Blue (#2196F3)
                 StrokeThickness = 3,
                 Points = new PointCollection(_points.Select(p => new System.Windows.Point(p.X, p.Y)))
+            };
+            
+            // Add subtle shadow effect
+            _polygon.Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                BlurRadius = 4,
+                ShadowDepth = 2,
+                Opacity = 0.2,
+                Color = System.Windows.Media.Color.FromRgb(33, 150, 243)
             };
 
             _polygon.MouseDown += Polygon_MouseDown;
@@ -88,11 +97,20 @@ namespace FloorTrace.Controls
             {
                 Width = FloorTrace.Utilities.Constants.VertexHandleSize,
                 Height = FloorTrace.Utilities.Constants.VertexHandleSize,
-                Fill = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0, 120, 215)), // Blue
+                Fill = new SolidColorBrush(System.Windows.Media.Color.FromRgb(33, 150, 243)), // Material Design Secondary Blue (#2196F3)
                 Stroke = System.Windows.Media.Brushes.White,
                 StrokeThickness = 2,
                 Cursor = System.Windows.Input.Cursors.Hand,
                 Tag = index
+            };
+            
+            // Add Material Design elevation shadow to vertices
+            vertex.Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                BlurRadius = 3,
+                ShadowDepth = 1,
+                Opacity = 0.25,
+                Color = System.Windows.Media.Colors.Black
             };
 
             Canvas.SetLeft(vertex, point.X - FloorTrace.Utilities.Constants.VertexHandleOffset);
