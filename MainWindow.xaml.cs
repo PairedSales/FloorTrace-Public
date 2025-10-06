@@ -21,6 +21,8 @@ namespace FloorTrace
         private const double _zoomStep = 0.1;
         private const double _minZoom = 0.1;
         private const double _maxZoom = 5.0;
+        private Controls.PerimeterOverlayControl? _perimeterOverlay = null;
+        private bool _roomOverlaysHidden = false;
 
         public MainWindow()
         {
@@ -58,12 +60,26 @@ namespace FloorTrace
                     {
                         // Sketch replaced; clear any overlays
                         OverlayCanvas.Children.Clear();
+                        _roomOverlaysHidden = false;
                     }
 
                     if (args.PropertyName == nameof(vm.CurrentSketch.SelectedRoomForScale) || args.PropertyName == nameof(vm.CurrentSketch.Rooms))
                     {
-                        RenderSelectedRoomOverlay(vm);
-                        UpdateDimensionsTextBox(vm);
+                        if (!_roomOverlaysHidden)
+                        {
+                            RenderSelectedRoomOverlay(vm);
+                            UpdateDimensionsTextBox(vm);
+                        }
+                    }
+                    
+                    if (args.PropertyName == nameof(vm.CurrentSketch.PerimeterPoints))
+                    {
+                        RenderPerimeterOverlay(vm);
+                    }
+
+                    if (args.PropertyName == nameof(vm.CurrentSketch.CurrentState))
+                    {
+                        HandleWorkflowStateChange(vm);
                     }
                 };
             }
@@ -324,6 +340,94 @@ namespace FloorTrace
 
             widthFeet = ParseOne(parts[0]);
             heightFeet = ParseOne(parts[1]);
+        }
+
+        private void RenderPerimeterOverlay(MainWindowViewModel vm)
+        {
+            // Hide room overlays and dimensions panel when showing perimeter
+            _roomOverlaysHidden = true;
+            DimensionsPanel.Visibility = Visibility.Collapsed;
+            
+            // Remove all existing room overlays
+            var roomOverlays = OverlayCanvas.Children.OfType<Controls.RoomOverlayControl>().ToList();
+            foreach (var overlay in roomOverlays)
+            {
+                OverlayCanvas.Children.Remove(overlay);
+            }
+
+            // Remove existing perimeter overlay if any
+            if (_perimeterOverlay != null)
+            {
+                OverlayCanvas.Children.Remove(_perimeterOverlay);
+                _perimeterOverlay = null;
+            }
+
+            var points = vm?.CurrentSketch?.PerimeterPoints;
+            if (points == null || points.Count < 3)
+                return;
+
+            // Create new perimeter overlay
+            _perimeterOverlay = new Controls.PerimeterOverlayControl();
+            _perimeterOverlay.SetPoints(points);
+            
+            // Set editability based on workflow state
+            bool isEditable = vm?.CurrentSketch?.CurrentState != Models.WorkflowState.AreaCalculated;
+            _perimeterOverlay.IsEditable = isEditable;
+            
+            // Handle perimeter changes
+            _perimeterOverlay.PerimeterChanged += (s, e) =>
+            {
+                // Sync the perimeter points back to the model
+                vm.CurrentSketch.PerimeterPoints = _perimeterOverlay.GetPoints();
+            };
+
+            // Set the overlay to fill the canvas
+            _perimeterOverlay.Width = FloorPlanImage.Source?.Width ?? 0;
+            _perimeterOverlay.Height = FloorPlanImage.Source?.Height ?? 0;
+            
+            OverlayCanvas.Children.Add(_perimeterOverlay);
+        }
+
+        private void HandleWorkflowStateChange(MainWindowViewModel vm)
+        {
+            if (vm?.CurrentSketch == null)
+                return;
+
+            var state = vm.CurrentSketch.CurrentState;
+            System.Diagnostics.Debug.WriteLine($"Workflow state changed to: {state}");
+
+            switch (state)
+            {
+                case Models.WorkflowState.RoomDetected:
+                    // Show room overlays and dimensions panel
+                    _roomOverlaysHidden = false;
+                    RenderSelectedRoomOverlay(vm);
+                    UpdateDimensionsTextBox(vm);
+                    
+                    // Remove perimeter overlay if any
+                    if (_perimeterOverlay != null)
+                    {
+                        OverlayCanvas.Children.Remove(_perimeterOverlay);
+                        _perimeterOverlay = null;
+                    }
+                    break;
+
+                case Models.WorkflowState.PerimeterTraced:
+                    // Re-enable perimeter editing
+                    if (_perimeterOverlay != null)
+                    {
+                        _perimeterOverlay.IsEditable = true;
+                    }
+                    break;
+
+                case Models.WorkflowState.AreaCalculated:
+                    // Disable perimeter editing
+                    if (_perimeterOverlay != null)
+                    {
+                        _perimeterOverlay.IsEditable = false;
+                    }
+                    break;
+            }
         }
     }
 }

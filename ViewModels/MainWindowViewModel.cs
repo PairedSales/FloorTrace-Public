@@ -57,6 +57,7 @@ namespace FloorTrace.ViewModels
                 
                 await LoadImageFromPath(filePath);
                 IsResultsPanelVisible = false;
+                CurrentSketch.CurrentState = WorkflowState.ImageLoaded;
             }
             catch (Exception ex)
             {
@@ -87,7 +88,8 @@ namespace FloorTrace.ViewModels
                     ImagePath = "Clipboard", // Special indicator for pasted images
                     Thumbnail = thumbnail,
                     DateCreated = DateTime.Now,
-                    DateModified = DateTime.Now
+                    DateModified = DateTime.Now,
+                    CurrentState = WorkflowState.ImageLoaded
                 };
                 
                 // Store the full image for display
@@ -126,7 +128,8 @@ namespace FloorTrace.ViewModels
                 ImagePath = filePath,
                 Thumbnail = thumbnail,
                 DateCreated = DateTime.Now,
-                DateModified = DateTime.Now
+                DateModified = DateTime.Now,
+                CurrentState = WorkflowState.ImageLoaded
             };
             
             // Store the full image for display
@@ -160,6 +163,7 @@ namespace FloorTrace.ViewModels
                     // For now, we only care about the first detected room
                     CurrentSketch.Rooms = detectedRooms;
                     CurrentSketch.SelectedRoomForScale = detectedRooms.First();
+                    CurrentSketch.CurrentState = WorkflowState.RoomDetected;
                     System.Diagnostics.Debug.WriteLine($"Detected room: {CurrentSketch.SelectedRoomForScale.Name} with dimensions {CurrentSketch.SelectedRoomForScale.Dimensions}");
                     OnPropertyChanged(nameof(CurrentSketch.Rooms));
                     OnPropertyChanged(nameof(CurrentSketch.SelectedRoomForScale));
@@ -195,6 +199,7 @@ namespace FloorTrace.ViewModels
 
                 var scale = await _scaleCalculationService.CalculateScaleFromRoomAsync(CurrentSketch.SelectedRoomForScale, CurrentImage);
                 CurrentSketch.Scale = scale;
+                CurrentSketch.CurrentState = WorkflowState.ScaleSet;
                 OnPropertyChanged(nameof(ScaleText));
             }
             catch (Exception ex)
@@ -206,18 +211,147 @@ namespace FloorTrace.ViewModels
         [RelayCommand]
         public async void TracePerimeter()
         {
-            // Placeholder for perimeter tracing logic
-            await Task.Delay(100);
+            if (CurrentImage == null)
+            {
+                System.Diagnostics.Debug.WriteLine("No image loaded to trace perimeter.");
+                return;
+            }
+
+            try
+            {
+                // Detect the perimeter automatically
+                var perimeterPoints = await _imageProcessingService.DetectPerimeterAsync(CurrentImage);
+                
+                // Store in the current sketch
+                CurrentSketch.PerimeterPoints = perimeterPoints;
+                CurrentSketch.CurrentState = WorkflowState.PerimeterTraced;
+                
+                System.Diagnostics.Debug.WriteLine($"Traced perimeter with {perimeterPoints.Count} points");
+                
+                // Notify UI of changes
+                OnPropertyChanged(nameof(CurrentSketch.PerimeterPoints));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error tracing perimeter: {ex.Message}");
+                // TODO: Show error dialog to user
+            }
         }
         
         [RelayCommand]
         public async void CalculateArea()
         {
-            // Placeholder for area calculation logic
-            await Task.Delay(100);
-            IsResultsPanelVisible = true;
+            if (CurrentSketch?.PerimeterPoints == null || CurrentSketch.PerimeterPoints.Count < 3)
+            {
+                System.Diagnostics.Debug.WriteLine("No perimeter points to calculate area.");
+                return;
+            }
+
+            if (CurrentSketch.Scale <= 0)
+            {
+                System.Diagnostics.Debug.WriteLine("Scale not set. Cannot calculate area.");
+                return;
+            }
+
+            try
+            {
+                // Calculate area in pixels using Green's theorem
+                var areaInPixels = await _areaCalculationService.CalculateAreaUsingGreensTheoremAsync(CurrentSketch.PerimeterPoints);
+                
+                // Convert to square feet
+                var areaInSquareFeet = areaInPixels / (CurrentSketch.Scale * CurrentSketch.Scale);
+                CurrentSketch.AreaSquareFeet = areaInSquareFeet;
+                
+                // Calculate side lengths in pixels
+                var sideLengthsInPixels = await _areaCalculationService.CalculateSideLengthsAsync(CurrentSketch.PerimeterPoints);
+                
+                // Convert to feet
+                var sideLengthsInFeet = new List<double>();
+                foreach (var lengthInPixels in sideLengthsInPixels)
+                {
+                    var lengthInFeet = await _areaCalculationService.ConvertPixelsToFeetAsync(lengthInPixels, CurrentSketch.Scale);
+                    sideLengthsInFeet.Add(lengthInFeet);
+                }
+                CurrentSketch.SideLengths = sideLengthsInFeet;
+                CurrentSketch.CurrentState = WorkflowState.AreaCalculated;
+                
+                System.Diagnostics.Debug.WriteLine($"Calculated area: {areaInSquareFeet:F2} sq ft");
+                
+                // Update UI
+                OnPropertyChanged(nameof(ScaleText));
+                OnPropertyChanged(nameof(SideLengthsText));
+                OnPropertyChanged(nameof(AreaText));
+                OnPropertyChanged(nameof(CurrentSketch.CurrentState));
+                IsResultsPanelVisible = true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error calculating area: {ex.Message}");
+                // TODO: Show error dialog to user
+            }
         }
         
+        [RelayCommand]
+        public void EditRoom()
+        {
+            try
+            {
+                if (CurrentSketch == null)
+                    return;
+
+                // Return to RoomDetected state
+                CurrentSketch.CurrentState = WorkflowState.RoomDetected;
+                IsResultsPanelVisible = false;
+                
+                // Clear perimeter and area data
+                CurrentSketch.PerimeterPoints.Clear();
+                CurrentSketch.AreaSquareFeet = 0.0;
+                CurrentSketch.SideLengths.Clear();
+                
+                // Notify UI
+                OnPropertyChanged(nameof(CurrentSketch.CurrentState));
+                OnPropertyChanged(nameof(CurrentSketch.PerimeterPoints));
+                OnPropertyChanged(nameof(ScaleText));
+                OnPropertyChanged(nameof(SideLengthsText));
+                OnPropertyChanged(nameof(AreaText));
+                
+                System.Diagnostics.Debug.WriteLine("Edit Room: Returned to RoomDetected state");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in EditRoom: {ex.Message}");
+            }
+        }
+
+        [RelayCommand]
+        public void EditPerimeter()
+        {
+            try
+            {
+                if (CurrentSketch == null)
+                    return;
+
+                // Return to PerimeterTraced state
+                CurrentSketch.CurrentState = WorkflowState.PerimeterTraced;
+                IsResultsPanelVisible = false;
+                
+                // Clear area data but keep perimeter
+                CurrentSketch.AreaSquareFeet = 0.0;
+                CurrentSketch.SideLengths.Clear();
+                
+                // Notify UI
+                OnPropertyChanged(nameof(CurrentSketch.CurrentState));
+                OnPropertyChanged(nameof(SideLengthsText));
+                OnPropertyChanged(nameof(AreaText));
+                
+                System.Diagnostics.Debug.WriteLine("Edit Perimeter: Returned to PerimeterTraced state");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in EditPerimeter: {ex.Message}");
+            }
+        }
+
         [RelayCommand]
         public async void SaveSketch()
         {

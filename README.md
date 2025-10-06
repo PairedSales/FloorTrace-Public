@@ -9,8 +9,8 @@ See ExampleFloorplan.png for a sample floorplan sketch.
 - 🔍 **Automatic Dimension Detection** - OCR-based room dimension recognition
 - 📏 **Scale Calculation** - Automatic scale calculation from detected room dimensions
 - ✏️ **Manual Scale Adjustment** - Edit detected room dimensions and scale manually
-- 🖊️ **Automatic Perimeter Tracing** - Automatic perimeter tracing using Hough Transform
-- 📐 **Area Calculation** - Precise square footage calculation using Green's Theorem
+- 🖊️ **Automatic Perimeter Tracing** - Automatic perimeter tracing
+- 📐 **Area Calculation** - Precise square footage calculation
 - 💾 **Auto-Save** - Last 25 sketches saved automatically
 - ⭐ **Permanent Storage** - Save important sketches forever
 
@@ -43,10 +43,14 @@ See ExampleFloorplan.png for a sample floorplan sketch.
    - Double click adds a new point.  Right click removes the point.
 
 4. **Calculate Area**
+   - Once the user is satisfied with the perimeter trace, "Calculate Area" is pressed
+   - Further editing of the perimeter is prevented.  In the Calculate Area state, only panning the image with the mouse and zooming is allowed
+   - Two buttons appear: "Edit Room" and "Edit Perimeter" for revisions
    - Results appear showing:
      - Scale (pixels per foot)
      - Side Lengths (feet)
      - Total Area (square feet)
+
 
 5. **Save and Recall Past Sketches** 
    - The last 25 sketches are saved automatically and displayed in the side panel

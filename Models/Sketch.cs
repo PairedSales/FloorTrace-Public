@@ -5,6 +5,16 @@ using System.Windows.Media.Imaging;
 
 namespace FloorTrace.Models
 {
+    public enum WorkflowState
+    {
+        NoImage,
+        ImageLoaded,
+        RoomDetected,
+        ScaleSet,
+        PerimeterTraced,
+        AreaCalculated
+    }
+
     public class Sketch
     {
         public string Id { get; set; } = Guid.NewGuid().ToString();
@@ -26,6 +36,9 @@ namespace FloorTrace.Models
         
         // Selected room for scale calculation
         public Room SelectedRoomForScale { get; set; }
+        
+        // Workflow state
+        public WorkflowState CurrentState { get; set; } = WorkflowState.NoImage;
     }
     
     public class Room
