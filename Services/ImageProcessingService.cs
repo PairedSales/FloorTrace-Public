@@ -177,7 +177,7 @@ namespace FloorTrace.Services
             return result == true ? openFileDialog.FileName : string.Empty;
         }
         
-        public async Task<List<PointF>> DetectPerimeterAsync(BitmapImage image)
+        public async Task<List<PointF>> DetectPerimeterAsync(BitmapImage image, bool useInnerEdge = true)
         {
             return await Task.Run(() =>
             {
@@ -220,9 +220,16 @@ namespace FloorTrace.Services
                     // Find the largest contour (assuming it's the floor plan perimeter)
                     var largestContour = contours.OrderByDescending(c => Cv2.ContourArea(c)).First();
                     
+                    // If using inner edge, erode the contour to account for wall thickness
+                    OpenCvSharp.Point[] processedContour = largestContour;
+                    if (useInnerEdge)
+                    {
+                        processedContour = ErodeContourForInnerEdge(largestContour, gray, mat.Size());
+                    }
+                    
                     // Approximate the contour to a polygon
-                    var epsilon = Constants.ContourApproximationEpsilon * Cv2.ArcLength(largestContour, true);
-                    var approxPolygon = Cv2.ApproxPolyDP(largestContour, epsilon, true);
+                    var epsilon = Constants.ContourApproximationEpsilon * Cv2.ArcLength(processedContour, true);
+                    var approxPolygon = Cv2.ApproxPolyDP(processedContour, epsilon, true);
                     
                     // Convert to List<PointF>
                     var perimeterPoints = new List<PointF>();
@@ -238,7 +245,8 @@ namespace FloorTrace.Services
                         return CreateDefaultPerimeter(mat.Width, mat.Height);
                     }
                     
-                    _logger.LogInformation("Successfully detected perimeter with {PointCount} points", perimeterPoints.Count);
+                    _logger.LogInformation("Successfully detected perimeter with {PointCount} points (inner edge: {UseInner})", 
+                        perimeterPoints.Count, useInnerEdge);
                     bitmap.Dispose();
                     return perimeterPoints;
                 }
@@ -260,6 +268,174 @@ namespace FloorTrace.Services
                 encoder.Save(memoryStream);
                 memoryStream.Position = 0;
                 return new Bitmap(memoryStream);
+            }
+        }
+        
+        private OpenCvSharp.Point[] ErodeContourForInnerEdge(OpenCvSharp.Point[] contour, Mat grayImage, OpenCvSharp.Size imageSize)
+        {
+            try
+            {
+                // Detect wall thickness by sampling points along the contour
+                int wallThickness = DetectWallThickness(contour, grayImage);
+                _logger.LogDebug("Detected wall thickness: {Thickness} pixels", wallThickness);
+                
+                // Create a mask from the contour
+                using var mask = new Mat(imageSize, MatType.CV_8UC1, Scalar.Black);
+                var contourArray = new OpenCvSharp.Point[][] { contour };
+                Cv2.DrawContours(mask, contourArray, 0, Scalar.White, -1);
+                
+                // Erode the mask to get the inner edge
+                int erosionSize = Math.Max(1, wallThickness / 2);
+                using var erosionKernel = Cv2.GetStructuringElement(MorphShapes.Ellipse, 
+                    new OpenCvSharp.Size(2 * erosionSize + 1, 2 * erosionSize + 1));
+                using var erodedMask = new Mat();
+                Cv2.Erode(mask, erodedMask, erosionKernel);
+                
+                // Find contours in the eroded mask
+                OpenCvSharp.Point[][] erodedContours;
+                HierarchyIndex[] hierarchy;
+                Cv2.FindContours(erodedMask, out erodedContours, out hierarchy, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
+                
+                // Return the largest eroded contour, or original if erosion failed
+                if (erodedContours.Length > 0)
+                {
+                    var largestErodedContour = erodedContours.OrderByDescending(c => Cv2.ContourArea(c)).First();
+                    
+                    // Validate the eroded contour has a reasonable area
+                    double originalArea = Cv2.ContourArea(contour);
+                    double erodedArea = Cv2.ContourArea(largestErodedContour);
+                    
+                    // If eroded area is too small (less than 20% of original), use original
+                    if (erodedArea > originalArea * 0.2 && largestErodedContour.Length >= Constants.MinPerimeterPoints)
+                    {
+                        _logger.LogDebug("Successfully eroded contour from {OrigArea:F0} to {ErodedArea:F0} pixels", 
+                            originalArea, erodedArea);
+                        return largestErodedContour;
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Eroded contour too small or invalid, using original contour");
+                        return contour;
+                    }
+                }
+                
+                _logger.LogWarning("Failed to erode contour, using original");
+                return contour;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error eroding contour for inner edge, using original");
+                return contour;
+            }
+        }
+        
+        private int DetectWallThickness(OpenCvSharp.Point[] contour, Mat grayImage)
+        {
+            try
+            {
+                var thicknesses = new List<int>();
+                
+                // Sample points along the contour to measure wall thickness
+                int sampleCount = Math.Min(20, contour.Length);
+                int step = Math.Max(1, contour.Length / sampleCount);
+                
+                for (int i = 0; i < contour.Length; i += step)
+                {
+                    var point = contour[i];
+                    
+                    // Calculate inward normal direction
+                    int prevIdx = (i - 1 + contour.Length) % contour.Length;
+                    int nextIdx = (i + 1) % contour.Length;
+                    
+                    var tangentX = contour[nextIdx].X - contour[prevIdx].X;
+                    var tangentY = contour[nextIdx].Y - contour[prevIdx].Y;
+                    
+                    // Normal is perpendicular to tangent (rotate 90 degrees), pointing inward
+                    double normalX = -tangentY;
+                    double normalY = tangentX;
+                    
+                    // Normalize the normal vector
+                    double normalLength = Math.Sqrt(normalX * normalX + normalY * normalY);
+                    if (normalLength < 0.001) continue;
+                    
+                    normalX /= normalLength;
+                    normalY /= normalLength;
+                    
+                    // Sample along the normal to find wall thickness
+                    int thickness = MeasureThicknessAlongNormal(point, normalX, normalY, grayImage);
+                    if (thickness > 0)
+                    {
+                        thicknesses.Add(thickness);
+                    }
+                }
+                
+                // Return median thickness, or default if no valid measurements
+                if (thicknesses.Count > 0)
+                {
+                    thicknesses.Sort();
+                    int median = thicknesses[thicknesses.Count / 2];
+                    
+                    // Clamp to reasonable range
+                    median = Math.Max(Constants.MinWallThicknessPixels, 
+                                     Math.Min(Constants.MaxWallThicknessPixels, median));
+                    
+                    return median;
+                }
+                
+                return Constants.DefaultWallThicknessPixels;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error detecting wall thickness");
+                return Constants.DefaultWallThicknessPixels;
+            }
+        }
+        
+        private int MeasureThicknessAlongNormal(OpenCvSharp.Point point, double normalX, double normalY, Mat grayImage)
+        {
+            try
+            {
+                // Sample pixels along the normal direction to find where darkness ends
+                int maxDistance = Constants.MaxWallThicknessPixels;
+                int darkThreshold = 127; // Consider pixels darker than this as part of the wall
+                
+                int consecutiveBright = 0;
+                int requiredConsecutive = 2; // Need 2 consecutive bright pixels to confirm wall edge
+                
+                for (int distance = 1; distance <= maxDistance; distance++)
+                {
+                    int x = (int)(point.X + normalX * distance);
+                    int y = (int)(point.Y + normalY * distance);
+                    
+                    // Check bounds
+                    if (x < 0 || x >= grayImage.Width || y < 0 || y >= grayImage.Height)
+                    {
+                        break;
+                    }
+                    
+                    // Get pixel intensity
+                    byte intensity = grayImage.At<byte>(y, x);
+                    
+                    // If pixel is bright (not part of wall), increment counter
+                    if (intensity > darkThreshold)
+                    {
+                        consecutiveBright++;
+                        if (consecutiveBright >= requiredConsecutive)
+                        {
+                            return distance - requiredConsecutive + 1;
+                        }
+                    }
+                    else
+                    {
+                        consecutiveBright = 0;
+                    }
+                }
+                
+                return 0; // Couldn't find clear wall edge
+            }
+            catch
+            {
+                return 0;
             }
         }
         

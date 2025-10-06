@@ -22,6 +22,11 @@ namespace FloorTrace.Utilities
         public const double ContourApproximationEpsilon = 0.01;
         public const int MinPerimeterPoints = 3;
         public const float DefaultPerimeterMarginRatio = 0.1f;
+        
+        // Wall thickness detection
+        public const int DefaultWallThicknessPixels = 8;
+        public const int MaxWallThicknessPixels = 50;
+        public const int MinWallThicknessPixels = 2;
 
         // Storage
         public const int MaxRecentSketches = 25;

@@ -34,6 +34,15 @@ namespace FloorTrace.ViewModels
         [ObservableProperty]
         private bool isPriorSketchesVisible = false;
         
+        [ObservableProperty]
+        private bool useInnerWallEdge;
+        
+        partial void OnUseInnerWallEdgeChanged(bool value)
+        {
+            // Automatically re-trace perimeter when the setting changes
+            _ = OnWallEdgePreferenceChangedAsync();
+        }
+        
         public bool IsSavingEnabled { get; }
         
         public int MaxSavedSketches { get; }
@@ -58,6 +67,7 @@ namespace FloorTrace.ViewModels
             // Read saving settings from configuration
             IsSavingEnabled = _configuration.GetValue<bool>("ApplicationSettings:IsSavingEnabled");
             MaxSavedSketches = _configuration.GetValue<int>("ApplicationSettings:MaxSavedSketches");
+            UseInnerWallEdge = _configuration.GetValue<bool>("ApplicationSettings:UseInnerWallEdge", true);
             
             CurrentSketch = new Sketch();
             PriorSketches = _priorSketches;
@@ -260,6 +270,37 @@ namespace FloorTrace.ViewModels
             await CalculateScaleAsync();
         }
         
+        private async Task OnWallEdgePreferenceChangedAsync()
+        {
+            // Only re-trace if we already have a traced perimeter
+            if (CurrentImage != null && CurrentSketch?.CurrentState >= WorkflowState.PerimeterTraced)
+            {
+                try
+                {
+                    _logger.LogInformation("Wall edge preference changed to {UseInner}, re-tracing perimeter", UseInnerWallEdge);
+                    
+                    // Re-detect the perimeter with the new setting
+                    var perimeterPoints = await _imageProcessingService.DetectPerimeterAsync(CurrentImage, UseInnerWallEdge);
+                    
+                    // Store in the current sketch
+                    CurrentSketch.PerimeterPoints = perimeterPoints;
+                    
+                    // Notify UI of changes
+                    OnPropertyChanged(nameof(CurrentSketch.PerimeterPoints));
+                    
+                    // Re-calculate area with the new perimeter
+                    await TryAutoCalculateAreaAsync();
+                    
+                    // Auto-save after perimeter re-traced
+                    await AutoSaveSketchAsync();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error re-tracing perimeter after wall edge preference change");
+                }
+            }
+        }
+        
         [RelayCommand]
         private async Task TracePerimeterAsync()
         {
@@ -274,14 +315,15 @@ namespace FloorTrace.ViewModels
 
             try
             {
-                // Detect the perimeter automatically
-                var perimeterPoints = await _imageProcessingService.DetectPerimeterAsync(CurrentImage);
+                // Detect the perimeter automatically with the current wall edge preference
+                var perimeterPoints = await _imageProcessingService.DetectPerimeterAsync(CurrentImage, UseInnerWallEdge);
                 
                 // Store in the current sketch
                 CurrentSketch.PerimeterPoints = perimeterPoints;
                 CurrentSketch.CurrentState = WorkflowState.PerimeterTraced;
                 
-                _logger.LogInformation("Traced perimeter with {Count} points", perimeterPoints.Count);
+                _logger.LogInformation("Traced perimeter with {Count} points (inner edge: {UseInner})", 
+                    perimeterPoints.Count, UseInnerWallEdge);
                 
                 // Notify UI of changes
                 OnPropertyChanged(nameof(CurrentSketch.PerimeterPoints));
