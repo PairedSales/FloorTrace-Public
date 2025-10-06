@@ -80,12 +80,12 @@ namespace FloorTrace.Services
         
         public async Task<double> ConvertPixelsToFeetAsync(double pixels, double scale)
         {
-            return await Task.FromResult(pixels / scale);
+            return await Task.FromResult(pixels / scale).ConfigureAwait(false);
         }
         
         public async Task<double> ConvertFeetToPixelsAsync(double feet, double scale)
         {
-            return await Task.FromResult(feet * scale);
+            return await Task.FromResult(feet * scale).ConfigureAwait(false);
         }
     }
 }

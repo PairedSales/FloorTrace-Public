@@ -86,8 +86,8 @@ namespace FloorTrace.Controls
         {
             var vertex = new Ellipse
             {
-                Width = 12,
-                Height = 12,
+                Width = FloorTrace.Utilities.Constants.VertexHandleSize,
+                Height = FloorTrace.Utilities.Constants.VertexHandleSize,
                 Fill = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0, 120, 215)), // Blue
                 Stroke = System.Windows.Media.Brushes.White,
                 StrokeThickness = 2,
@@ -95,8 +95,8 @@ namespace FloorTrace.Controls
                 Tag = index
             };
 
-            Canvas.SetLeft(vertex, point.X - 6);
-            Canvas.SetTop(vertex, point.Y - 6);
+            Canvas.SetLeft(vertex, point.X - FloorTrace.Utilities.Constants.VertexHandleOffset);
+            Canvas.SetTop(vertex, point.Y - FloorTrace.Utilities.Constants.VertexHandleOffset);
 
             vertex.MouseDown += Vertex_MouseDown;
             vertex.MouseMove += Vertex_MouseMove;
@@ -130,8 +130,8 @@ namespace FloorTrace.Controls
                 _points[_draggedVertexIndex] = new PointF((float)position.X, (float)position.Y);
                 
                 // Update the vertex position
-                Canvas.SetLeft(_draggedVertex, position.X - 6);
-                Canvas.SetTop(_draggedVertex, position.Y - 6);
+                Canvas.SetLeft(_draggedVertex, position.X - FloorTrace.Utilities.Constants.VertexHandleOffset);
+                Canvas.SetTop(_draggedVertex, position.Y - FloorTrace.Utilities.Constants.VertexHandleOffset);
                 
                 // Update the polygon
                 if (_polygon != null)

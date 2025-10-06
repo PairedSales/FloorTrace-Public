@@ -22,6 +22,7 @@ namespace FloorTrace.ViewModels
         private readonly IScaleCalculationService _scaleCalculationService;
         private readonly IAreaCalculationService _areaCalculationService;
         private readonly IStorageService _storageService;
+        private readonly IDialogService _dialogService;
         
         [ObservableProperty]
         private Sketch currentSketch;
@@ -31,28 +32,33 @@ namespace FloorTrace.ViewModels
         [ObservableProperty]
         private bool isResultsPanelVisible = false;
         
+        [ObservableProperty]
+        private bool isPriorSketchesVisible = false;
+        
         public MainWindowViewModel(
             ILogger<MainWindowViewModel> logger,
             IImageProcessingService imageProcessingService,
             IScaleCalculationService scaleCalculationService,
             IAreaCalculationService areaCalculationService,
-            IStorageService storageService)
+            IStorageService storageService,
+            IDialogService dialogService)
         {
             _logger = logger;
             _imageProcessingService = imageProcessingService;
             _scaleCalculationService = scaleCalculationService;
             _areaCalculationService = areaCalculationService;
             _storageService = storageService;
+            _dialogService = dialogService;
             
             CurrentSketch = new Sketch();
             PriorSketches = _priorSketches;
             
-            LoadPriorSketches();
+            _ = LoadPriorSketchesAsync();
         }
         
         // Commands
         [RelayCommand]
-        public async void LoadImage()
+        private async Task LoadImageAsync()
         {
             try
             {
@@ -60,19 +66,21 @@ namespace FloorTrace.ViewModels
                 if (string.IsNullOrEmpty(filePath))
                     return;
                 
-                await LoadImageFromPath(filePath);
+                await LoadImageFromPathAsync(filePath);
                 IsResultsPanelVisible = false;
                 CurrentSketch.CurrentState = WorkflowState.ImageLoaded;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error loading image");
-                // TODO: Show error dialog to user
+                await _dialogService.ShowErrorAsync(
+                    "Failed to load the image. Please ensure the file exists and is a valid image format.",
+                    "Load Image Error");
             }
         }
         
         [RelayCommand]
-        public async void PasteImage()
+        private async Task PasteImageAsync()
         {
             try
             {
@@ -83,7 +91,7 @@ namespace FloorTrace.ViewModels
                 _logger.LogInformation("Image loaded from clipboard: {Width}x{Height}", image?.PixelWidth, image?.PixelHeight);
                 
                 // Create thumbnail for the sidebar
-                var thumbnail = image != null ? await _imageProcessingService.CreateThumbnailAsync(image, 150, 100) : null;
+                var thumbnail = image != null ? await _imageProcessingService.CreateThumbnailAsync(image, Utilities.Constants.ThumbnailMaxWidth, Utilities.Constants.ThumbnailMaxHeight) : null;
                 _logger.LogInformation("Thumbnail created: {Width}x{Height}", thumbnail?.PixelWidth, thumbnail?.PixelHeight);
                 
                 // Update current sketch
@@ -110,20 +118,29 @@ namespace FloorTrace.ViewModels
                 
                 _logger.LogInformation("PasteImage command completed successfully");
             }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning(ex, "No image in clipboard");
+                await _dialogService.ShowWarningAsync(
+                    "No image found in the clipboard. Please copy an image first.",
+                    "Paste Image");
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error pasting image");
-                // TODO: Show error dialog to user
+                await _dialogService.ShowErrorAsync(
+                    "Failed to paste the image from clipboard. Please try again.",
+                    "Paste Image Error");
             }
         }
         
-        private async Task LoadImageFromPath(string filePath)
+        private async Task LoadImageFromPathAsync(string filePath)
         {
             // Load the image
             var image = await _imageProcessingService.LoadImageAsync(filePath);
             
             // Create thumbnail for the sidebar
-            var thumbnail = await _imageProcessingService.CreateThumbnailAsync(image, 150, 100);
+            var thumbnail = await _imageProcessingService.CreateThumbnailAsync(image, Utilities.Constants.ThumbnailMaxWidth, Utilities.Constants.ThumbnailMaxHeight);
             
             // Update current sketch
             CurrentSketch = new Sketch
@@ -148,17 +165,26 @@ namespace FloorTrace.ViewModels
         }
         
         [RelayCommand]
-        public async void DetectRoom()
+        private async Task DetectRoomAsync()
         {
             if (CurrentImage == null)
             {
-                // TODO: Show a message to the user that an image needs to be loaded first
                 _logger.LogWarning("No image loaded to detect rooms from.");
+                await _dialogService.ShowWarningAsync(
+                    "Please load an image first before detecting rooms.",
+                    "No Image Loaded");
                 return;
             }
 
             try
             {
+                // Detect wall lines for snapping
+                var (horizontalLines, verticalLines) = await _imageProcessingService.DetectWallLinesAsync(CurrentImage);
+                CurrentSketch.HorizontalWallLines = horizontalLines;
+                CurrentSketch.VerticalWallLines = verticalLines;
+                _logger.LogInformation("Detected {HCount} horizontal and {VCount} vertical wall lines for snapping", 
+                    horizontalLines.Count, verticalLines.Count);
+
                 // Detect rooms
                 var detectedRooms = await _scaleCalculationService.DetectRoomsAsync(CurrentImage);
 
@@ -175,29 +201,37 @@ namespace FloorTrace.ViewModels
                 else
                 {
                     _logger.LogInformation("No rooms detected.");
+                    await _dialogService.ShowInfoAsync(
+                        "No rooms with dimension labels were detected in the image. You may need to adjust the image or add dimensions manually.",
+                        "No Rooms Detected");
+                    
                     // Clear any previously detected rooms if none are found now
                     CurrentSketch.Rooms.Clear();
                     CurrentSketch.SelectedRoomForScale = null;
                     OnPropertyChanged(nameof(CurrentSketch.Rooms));
                     OnPropertyChanged(nameof(CurrentSketch.SelectedRoomForScale));
                 }
-
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error detecting rooms");
-                // TODO: Show error dialog to user
+                await _dialogService.ShowErrorAsync(
+                    "Failed to detect rooms in the image. Please try again or check if the image quality is sufficient.",
+                    "Room Detection Error");
             }
         }
         
         [RelayCommand]
-        public async void SetScale()
+        private async Task SetScaleAsync()
         {
             try
             {
                 if (CurrentImage == null || CurrentSketch?.SelectedRoomForScale == null)
                 {
                     _logger.LogWarning("Cannot set scale: no image or no selected room.");
+                    await _dialogService.ShowWarningAsync(
+                        "Please load an image and detect a room before setting the scale.",
+                        "Cannot Set Scale");
                     return;
                 }
 
@@ -205,19 +239,26 @@ namespace FloorTrace.ViewModels
                 CurrentSketch.Scale = scale;
                 CurrentSketch.CurrentState = WorkflowState.ScaleSet;
                 OnPropertyChanged(nameof(ScaleText));
+                _logger.LogInformation("Scale set to {Scale:F2} px/ft", scale);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error setting scale");
+                await _dialogService.ShowErrorAsync(
+                    "Failed to calculate the scale. Please verify the room dimensions are correct.",
+                    "Scale Calculation Error");
             }
         }
         
         [RelayCommand]
-        public async void TracePerimeter()
+        private async Task TracePerimeterAsync()
         {
             if (CurrentImage == null)
             {
                 _logger.LogWarning("No image loaded to trace perimeter.");
+                await _dialogService.ShowWarningAsync(
+                    "Please load an image first before tracing the perimeter.",
+                    "No Image Loaded");
                 return;
             }
 
@@ -238,22 +279,30 @@ namespace FloorTrace.ViewModels
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error tracing perimeter");
-                // TODO: Show error dialog to user
+                await _dialogService.ShowErrorAsync(
+                    "Failed to trace the perimeter automatically. The perimeter detection may have failed.",
+                    "Perimeter Tracing Error");
             }
         }
         
         [RelayCommand]
-        public async void CalculateArea()
+        private async Task CalculateAreaAsync()
         {
             if (CurrentSketch?.PerimeterPoints == null || CurrentSketch.PerimeterPoints.Count < 3)
             {
                 _logger.LogWarning("No perimeter points to calculate area.");
+                await _dialogService.ShowWarningAsync(
+                    "Please trace the perimeter first before calculating the area.",
+                    "No Perimeter Traced");
                 return;
             }
 
             if (CurrentSketch.Scale <= 0)
             {
                 _logger.LogWarning("Scale not set. Cannot calculate area.");
+                await _dialogService.ShowWarningAsync(
+                    "Please set the scale first by detecting a room and its dimensions.",
+                    "Scale Not Set");
                 return;
             }
 
@@ -291,7 +340,9 @@ namespace FloorTrace.ViewModels
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error calculating area");
-                // TODO: Show error dialog to user
+                await _dialogService.ShowErrorAsync(
+                    "Failed to calculate the area. Please verify the perimeter is correctly traced.",
+                    "Area Calculation Error");
             }
         }
         
@@ -357,26 +408,36 @@ namespace FloorTrace.ViewModels
         }
 
         [RelayCommand]
-        public async void SaveSketch()
+        private async Task SaveSketchAsync()
         {
-            // Placeholder for save logic
-            await Task.Delay(100);
             try
             {
                 CurrentSketch.IsPermanent = true;
                 CurrentSketch.DateModified = DateTime.Now;
                 
-                // TODO: Implement saving to storage
-                LoadPriorSketches(); // Refresh the list
+                // Save to storage
+                await _storageService.SaveSketchAsync(CurrentSketch);
+                
+                _logger.LogInformation("Sketch {SketchId} saved permanently", CurrentSketch.Id);
+                
+                // Refresh the list
+                await LoadPriorSketchesAsync();
+                
+                await _dialogService.ShowInfoAsync(
+                    "Sketch saved successfully.",
+                    "Save Complete");
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error saving sketch");
+                await _dialogService.ShowErrorAsync(
+                    "Failed to save the sketch. Please try again.",
+                    "Save Error");
             }
         }
         
         [RelayCommand]
-        public async void LoadTestImage()
+        private async Task LoadTestImageAsync()
         {
             try
             {
@@ -386,17 +447,23 @@ namespace FloorTrace.ViewModels
                 // Check if the file exists
                 if (!File.Exists(testImagePath))
                 {
-                _logger.LogWarning("Test image not found at: {Path}", testImagePath);
+                    _logger.LogWarning("Test image not found at: {Path}", testImagePath);
+                    await _dialogService.ShowWarningAsync(
+                        $"Test image not found at: {testImagePath}",
+                        "Test Image Not Found");
                     return;
                 }
                 
-                await LoadImageFromPath(testImagePath);
+                await LoadImageFromPathAsync(testImagePath);
                 IsResultsPanelVisible = false;
-            _logger.LogInformation("Test image loaded successfully");
+                _logger.LogInformation("Test image loaded successfully");
             }
             catch (Exception ex)
             {
-            _logger.LogError(ex, "Error loading test image");
+                _logger.LogError(ex, "Error loading test image");
+                await _dialogService.ShowErrorAsync(
+                    "Failed to load the test image.",
+                    "Test Image Error");
             }
         }
 
@@ -418,6 +485,12 @@ namespace FloorTrace.ViewModels
             }
         }
         
+        [RelayCommand]
+        public void TogglePriorSketches()
+        {
+            IsPriorSketchesVisible = !IsPriorSketchesVisible;
+        }
+        
         // Properties
         public ObservableCollection<Sketch> PriorSketches { get; }
         
@@ -430,10 +503,26 @@ namespace FloorTrace.ViewModels
         public string AreaText => CurrentSketch != null ? $"Area: {CurrentSketch.AreaSquareFeet:F2} sq ft" : "Area: N/A";
         
         // Private methods
-        private void LoadPriorSketches()
+        private async Task LoadPriorSketchesAsync()
         {
-            PriorSketches.Clear();
-            // TODO: Load from storage service
+            try
+            {
+                var sketches = await _storageService.LoadRecentSketchesAsync(Utilities.Constants.MaxRecentSketches);
+                
+                // Update UI collection
+                PriorSketches.Clear();
+                foreach (var sketch in sketches)
+                {
+                    PriorSketches.Add(sketch);
+                }
+                
+                _logger.LogInformation("Loaded {Count} prior sketches", sketches.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to load prior sketches");
+                // Don't show error dialog here as this runs on startup
+            }
         }
     }
 }

@@ -18,46 +18,27 @@ namespace FloorTrace
     {
         private bool _isDragging = false;
         private System.Windows.Point _lastMousePosition;
-        private double _zoomFactor = 1.0;
-        private const double _zoomStep = 0.1;
-        private const double _minZoom = 0.1;
-        private const double _maxZoom = 5.0;
+        private double _zoomFactor = FloorTrace.Utilities.Constants.DefaultZoom;
         private Controls.PerimeterOverlayControl? _perimeterOverlay = null;
         private bool _roomOverlaysHidden = false;
+        private readonly MainWindowViewModel _viewModel;
 
-        public MainWindow()
+        public MainWindow(MainWindowViewModel viewModel)
         {
             InitializeComponent();
-            LoadWindowSettings();
             
-            // Initialize services and ViewModel using DI
-            if (App.AppHost?.Services != null)
-            {
-                var imageProcessingService = App.AppHost.Services.GetRequiredService<Services.IImageProcessingService>();
-                var scaleCalculationService = App.AppHost.Services.GetRequiredService<Services.IScaleCalculationService>();
-                var areaCalculationService = App.AppHost.Services.GetRequiredService<Services.IAreaCalculationService>();
-                var storageService = App.AppHost.Services.GetRequiredService<Services.IStorageService>();
-                
-                DataContext = new ViewModels.MainWindowViewModel(
-                    App.AppHost.Services.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ViewModels.MainWindowViewModel>>(),
-                    imageProcessingService,
-                    scaleCalculationService,
-                    areaCalculationService,
-                    storageService);
-            }
-            else
-            {
-                // Fallback for design time or when DI is not available
-                DataContext = new ViewModels.MainWindowViewModel(
-                    Microsoft.Extensions.Logging.Abstractions.NullLogger<ViewModels.MainWindowViewModel>.Instance,
-                    new Services.ImageProcessingService(),
-                    new Services.ScaleCalculationService(new Services.ImageProcessingService()),
-                    new Services.AreaCalculationService(),
-                    new Services.StorageService(Microsoft.Extensions.Logging.Abstractions.NullLogger<Services.StorageService>.Instance));
-            }
+            _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
+            DataContext = _viewModel;
+            
+            // Hide test button in release builds
+#if !DEBUG
+            TestButton.Visibility = Visibility.Collapsed;
+#endif
+            
+            LoadWindowSettings();
 
             // Add a handler for when a new image is loaded to center it
-            var vm = DataContext as MainWindowViewModel;
+            var vm = _viewModel;
             if (vm != null)
             {
                 vm.PropertyChanged += (sender, args) =>
@@ -96,6 +77,11 @@ namespace FloorTrace
                     {
                         HandleWorkflowStateChange(vm);
                     }
+                    
+                    if (args.PropertyName == nameof(vm.IsPriorSketchesVisible))
+                    {
+                        UpdatePriorSketchesVisibility(vm.IsPriorSketchesVisible);
+                    }
                 };
             }
             
@@ -133,27 +119,23 @@ namespace FloorTrace
         private void LoadWindowSettings()
         {
             string settingsFile = GetSettingsFilePath();
-            if (File.Exists(settingsFile))
+            if (!File.Exists(settingsFile))
+                return;
+
+            try
             {
                 string json = File.ReadAllText(settingsFile);
                 var settings = JsonSerializer.Deserialize<WindowSettings>(json);
-                if (settings == null) return;
+                
+                if (settings == null)
+                    return;
 
-                // Add logic to ensure the window is visible on a screen
-                bool isWithinScreenBounds = false;
-                foreach (var screen in System.Windows.Forms.Screen.AllScreens)
-                {
-                    var screenBounds = new Rect(screen.WorkingArea.Left, screen.WorkingArea.Top, screen.WorkingArea.Width, screen.WorkingArea.Height);
-                    if (screenBounds.Contains(new System.Windows.Point(settings!.Left, settings.Top)))
-                    {
-                        isWithinScreenBounds = true;
-                        break;
-                    }
-                }
+                // Check if window is mostly visible on any screen (at least 50% of window area)
+                bool isWindowVisible = IsWindowVisibleOnAnyScreen(settings);
 
-                if (isWithinScreenBounds)
+                if (isWindowVisible)
                 {
-                    this.Top = settings!.Top;
+                    this.Top = settings.Top;
                     this.Left = settings.Left;
                     this.Height = settings.Height;
                     this.Width = settings.Width;
@@ -165,6 +147,40 @@ namespace FloorTrace
                     this.WindowStartupLocation = WindowStartupLocation.CenterScreen;
                 }
             }
+            catch (Exception)
+            {
+                // If settings are corrupted, use default position
+                this.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+            }
+        }
+
+        private bool IsWindowVisibleOnAnyScreen(WindowSettings settings)
+        {
+            var windowRect = new Rect(settings.Left, settings.Top, settings.Width, settings.Height);
+            
+            foreach (var screen in System.Windows.Forms.Screen.AllScreens)
+            {
+                var screenBounds = new Rect(
+                    screen.WorkingArea.Left, 
+                    screen.WorkingArea.Top, 
+                    screen.WorkingArea.Width, 
+                    screen.WorkingArea.Height);
+
+                // Calculate intersection area
+                var intersection = Rect.Intersect(windowRect, screenBounds);
+                if (!intersection.IsEmpty)
+                {
+                    // Check if at least 50% of window is visible
+                    double windowArea = windowRect.Width * windowRect.Height;
+                    double visibleArea = intersection.Width * intersection.Height;
+                    if (visibleArea / windowArea >= 0.5)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         private void CenterImageInView()
@@ -179,8 +195,8 @@ namespace FloorTrace
         {
             if (FloorPlanImage.Source == null) return;
 
-            var newZoom = _zoomFactor + (e.Delta > 0 ? _zoomStep : -_zoomStep);
-            _zoomFactor = Math.Max(_minZoom, Math.Min(_maxZoom, newZoom));
+            var newZoom = _zoomFactor + (e.Delta > 0 ? FloorTrace.Utilities.Constants.ZoomStep : -FloorTrace.Utilities.Constants.ZoomStep);
+            _zoomFactor = Math.Max(FloorTrace.Utilities.Constants.MinZoom, Math.Min(FloorTrace.Utilities.Constants.MaxZoom, newZoom));
 
             var mousePosition = e.GetPosition(ImageGrid);
             ZoomTransform.CenterX = mousePosition.X;
@@ -221,21 +237,11 @@ namespace FloorTrace
             PanningCanvas.ReleaseMouseCapture();
         }
 
-        private void ZoomIn_Click(object sender, RoutedEventArgs e)
-        {
-            _zoomFactor = Math.Min(_maxZoom, _zoomFactor + _zoomStep);
-            ApplyCenterZoom();
-        }
-
-        private void ZoomOut_Click(object sender, RoutedEventArgs e)
-        {
-            _zoomFactor = Math.Max(_minZoom, _zoomFactor - _zoomStep);
-            ApplyCenterZoom();
-        }
+        
 
         private void ResetZoom_Click(object sender, RoutedEventArgs e)
         {
-            _zoomFactor = 1.0;
+            _zoomFactor = FloorTrace.Utilities.Constants.DefaultZoom;
             ApplyCenterZoom();
         }
         
@@ -249,10 +255,9 @@ namespace FloorTrace
 
         private void FitToWindow_Click(object sender, RoutedEventArgs e)
         {
-            var vm = DataContext as MainWindowViewModel;
             if (FloorPlanImage.Source != null)
             {
-                _zoomFactor = 1.0;
+                _zoomFactor = FloorTrace.Utilities.Constants.DefaultZoom;
                 ApplyCenterZoom();
                 CenterImageInView(); // Re-center after fitting
             }
@@ -269,7 +274,9 @@ namespace FloorTrace
                 X = room.Bounds.X,
                 Y = room.Bounds.Y,
                 OverlayWidth = room.Bounds.Width,
-                OverlayHeight = room.Bounds.Height
+                OverlayHeight = room.Bounds.Height,
+                HorizontalWallLines = vm.CurrentSketch.HorizontalWallLines ?? new List<float>(),
+                VerticalWallLines = vm.CurrentSketch.VerticalWallLines ?? new List<float>()
             };
 
             overlay.OverlayChanged += (s, e) =>
@@ -302,61 +309,21 @@ namespace FloorTrace
 
         private async void OnDimensionsTextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
         {
-            var vm = DataContext as MainWindowViewModel;
-            var room = vm?.CurrentSketch?.SelectedRoomForScale;
+            var room = _viewModel?.CurrentSketch?.SelectedRoomForScale;
             if (room == null) return;
 
             var dimsText = RoomDimensionsTextBox.Text ?? string.Empty;
-            var svc = new ScaleCalculationService(new ImageProcessingService());
-            if (await svc.ValidateRoomDimensionsAsync(dimsText))
+            
+            if (FloorTrace.Utilities.DimensionParser.TryParseDimensionsFeet(dimsText, out var w, out var h))
             {
-                // Extract numbers
-                ParseDimensionsFeet(dimsText, out var w, out var h);
                 room.WidthFeet = w;
                 room.HeightFeet = h;
                 room.Dimensions = dimsText;
             }
+            
+            await Task.CompletedTask; // Keep method async for future enhancements
         }
 
-        private static void ParseDimensionsFeet(string text, out double widthFeet, out double heightFeet)
-        {
-            // Supports: 12x15, 12'x15', 12 ft x 15 ft, 12 5\" x 10 3\"
-            widthFeet = 0;
-            heightFeet = 0;
-            string Normalize(string s) => s.Replace("\u2032", "'").Replace("\u2033", "\"");
-
-            text = Normalize(text);
-            var parts = text.ToLower().Split('x', '×');
-            if (parts.Length != 2) return;
-
-            double ParseOne(string p)
-            {
-                p = p.Trim();
-                // feet and inches like 12' 6"
-                var feetIdx = p.IndexOf("'");
-                if (feetIdx >= 0)
-                {
-                    var feetPart = p.Substring(0, feetIdx).Trim();
-                    var rest = p.Substring(feetIdx + 1);
-                    double feet = double.TryParse(feetPart, out var f) ? f : 0;
-                    double inches = 0;
-                    var quoteIdx = rest.IndexOf('"');
-                    if (quoteIdx >= 0)
-                    {
-                        var inchesPart = rest.Substring(0, quoteIdx).Trim();
-                        inches = double.TryParse(inchesPart, out var i) ? i : 0;
-                    }
-                    return feet + inches / 12.0;
-                }
-
-                // simple number optionally with 'ft'
-                p = p.Replace("feet", string.Empty).Replace("ft", string.Empty).Trim();
-                return double.TryParse(p, out var val) ? val : 0;
-            }
-
-            widthFeet = ParseOne(parts[0]);
-            heightFeet = ParseOne(parts[1]);
-        }
 
         private void RenderPerimeterOverlay(MainWindowViewModel vm)
         {
@@ -402,6 +369,20 @@ namespace FloorTrace
             _perimeterOverlay.Height = FloorPlanImage.Source?.Height ?? 0;
             
             OverlayCanvas.Children.Add(_perimeterOverlay);
+        }
+
+        private void UpdatePriorSketchesVisibility(bool isVisible)
+        {
+            if (isVisible)
+            {
+                SplitterColumn.Width = new GridLength(5, GridUnitType.Pixel);
+                PriorSketchesColumn.Width = new GridLength(1, GridUnitType.Star);
+            }
+            else
+            {
+                SplitterColumn.Width = new GridLength(0);
+                PriorSketchesColumn.Width = new GridLength(0);
+            }
         }
 
         private void HandleWorkflowStateChange(MainWindowViewModel vm)

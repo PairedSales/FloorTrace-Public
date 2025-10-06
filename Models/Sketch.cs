@@ -34,6 +34,10 @@ namespace FloorTrace.Models
         public double AreaSquareFeet { get; set; } = 0.0;
         public List<double> SideLengths { get; set; } = new List<double>();
         
+        // Detected wall lines for snapping
+        public List<float> HorizontalWallLines { get; set; } = new List<float>();
+        public List<float> VerticalWallLines { get; set; } = new List<float>();
+        
         // Selected room for scale calculation
         public Room? SelectedRoomForScale { get; set; }
         

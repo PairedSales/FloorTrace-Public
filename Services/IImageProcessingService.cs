@@ -13,5 +13,6 @@ namespace FloorTrace.Services
         Task<bool> SaveImageAsync(BitmapImage image, string filePath);
         string ShowOpenFileDialog();
         Task<List<PointF>> DetectPerimeterAsync(BitmapImage image);
+        Task<(List<float> HorizontalLines, List<float> VerticalLines)> DetectWallLinesAsync(BitmapImage image);
     }
 }

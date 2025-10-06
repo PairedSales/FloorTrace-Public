@@ -26,6 +26,11 @@ namespace FloorTrace.Services
             EnsureDirectoriesExist();
         }
         
+        private static readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions
+        {
+            WriteIndented = true
+        };
+
         public async Task SaveSketchAsync(Sketch sketch)
         {
             await Task.Run(() =>
@@ -35,10 +40,7 @@ namespace FloorTrace.Services
                     var directory = sketch.IsPermanent ? _permanentSketchesDirectory : _sketchesDirectory;
                     var filePath = Path.Combine(directory, $"{sketch.Id}.json");
                     
-                    var json = JsonSerializer.Serialize(sketch, new JsonSerializerOptions
-                    {
-                        WriteIndented = true
-                    });
+                    var json = JsonSerializer.Serialize(sketch, _jsonOptions);
                     
                     File.WriteAllText(filePath, json);
                     _logger.LogInformation("Saved sketch {SketchId} to {Path}", sketch.Id, filePath);
@@ -48,7 +50,7 @@ namespace FloorTrace.Services
                     _logger.LogError(ex, "Failed to save sketch {SketchId}", sketch?.Id);
                     throw;
                 }
-            });
+            }).ConfigureAwait(false);
         }
         
         public async Task<Sketch> LoadSketchAsync(string sketchId)
@@ -63,7 +65,7 @@ namespace FloorTrace.Services
                     {
                         var json = File.ReadAllText(permanentPath);
                         _logger.LogInformation("Loaded sketch {SketchId} from {Path}", sketchId, permanentPath);
-                        return JsonSerializer.Deserialize<Sketch>(json) ?? new Sketch();
+                        return JsonSerializer.Deserialize<Sketch>(json, _jsonOptions) ?? new Sketch();
                     }
                     
                     // Try regular sketches
@@ -72,7 +74,7 @@ namespace FloorTrace.Services
                     {
                         var json = File.ReadAllText(regularPath);
                         _logger.LogInformation("Loaded sketch {SketchId} from {Path}", sketchId, regularPath);
-                        return JsonSerializer.Deserialize<Sketch>(json) ?? new Sketch();
+                        return JsonSerializer.Deserialize<Sketch>(json, _jsonOptions) ?? new Sketch();
                     }
                     
                     throw new FileNotFoundException($"Sketch with ID {sketchId} not found");
@@ -82,7 +84,7 @@ namespace FloorTrace.Services
                     _logger.LogError(ex, "Failed to load sketch {SketchId}", sketchId);
                     throw;
                 }
-            });
+            }).ConfigureAwait(false);
         }
         
         public async Task<List<Sketch>> LoadAllSketchesAsync()
@@ -106,12 +108,12 @@ namespace FloorTrace.Services
                     _logger.LogError(ex, "Failed to load all sketches");
                     throw;
                 }
-            });
+            }).ConfigureAwait(false);
         }
         
         public async Task<List<Sketch>> LoadRecentSketchesAsync(int count = 25)
         {
-            var allSketches = await LoadAllSketchesAsync();
+            var allSketches = await LoadAllSketchesAsync().ConfigureAwait(false);
             return allSketches.Take(count).ToList();
         }
         
@@ -140,7 +142,7 @@ namespace FloorTrace.Services
                     _logger.LogError(ex, "Failed to delete sketch {SketchId}", sketchId);
                     throw;
                 }
-            });
+            }).ConfigureAwait(false);
         }
         
         public async Task CleanupOldSketchesAsync()
@@ -149,15 +151,15 @@ namespace FloorTrace.Services
             {
                 try
                 {
-                    // Keep only the 25 most recent non-permanent sketches
+                    // Keep only the most recent non-permanent sketches
                     var sketchFiles = Directory.GetFiles(_sketchesDirectory, "*.json")
                         .Select(f => new { Path = f, LastWrite = File.GetLastWriteTime(f) })
                         .OrderByDescending(f => f.LastWrite)
                         .ToList();
                     
-                    if (sketchFiles.Count > 25)
+                    if (sketchFiles.Count > Utilities.Constants.MaxRecentSketches)
                     {
-                        var filesToDelete = sketchFiles.Skip(25);
+                        var filesToDelete = sketchFiles.Skip(Utilities.Constants.MaxRecentSketches);
                         foreach (var file in filesToDelete)
                         {
                             File.Delete(file.Path);
@@ -170,7 +172,7 @@ namespace FloorTrace.Services
                     _logger.LogError(ex, "Failed to cleanup old sketches");
                     throw;
                 }
-            });
+            }).ConfigureAwait(false);
         }
         
         private List<Sketch> LoadSketchesFromDirectory(string directory)
@@ -187,7 +189,7 @@ namespace FloorTrace.Services
                 try
                 {
                     var json = File.ReadAllText(file);
-                    var sketch = JsonSerializer.Deserialize<Sketch>(json);
+                    var sketch = JsonSerializer.Deserialize<Sketch>(json, _jsonOptions);
                     if (sketch != null)
                     {
                         sketches.Add(sketch);
