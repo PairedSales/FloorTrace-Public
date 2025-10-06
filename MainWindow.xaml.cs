@@ -41,38 +41,72 @@ namespace FloorTrace
             var vm = _viewModel;
             if (vm != null)
             {
-                vm.PropertyChanged += (sender, args) =>
-                {
-                    if (args.PropertyName == nameof(vm.CurrentImage) && vm.CurrentImage != null)
-                    {
-                        // Use Dispatcher to wait for the layout to update after the image loads
-                        Dispatcher.BeginInvoke(new Action(() =>
-                        {
-                            FitImageToWindow();
-                        }), System.Windows.Threading.DispatcherPriority.Loaded);
-                    }
-
-                    if (args.PropertyName == nameof(vm.CurrentSketch))
-                    {
-                        // Sketch replaced; clear any overlays
-                        OverlayCanvas.Children.Clear();
-                        _perimeterOverlay = null;
-                    }
-
-                    if (args.PropertyName == nameof(vm.CurrentSketch.SelectedRoomForScale) || args.PropertyName == nameof(vm.CurrentSketch.Rooms))
-                    {
-                        RenderSelectedRoomOverlay(vm);
-                        UpdateDimensionsTextBox(vm);
-                    }
-                    
-                    if (args.PropertyName == nameof(vm.CurrentSketch.PerimeterPoints))
-                    {
-                        RenderPerimeterOverlay(vm);
-                    }
-                };
+                vm.PropertyChanged += (sender, args) => HandlePropertyChanged(vm, args);
             }
             
             this.Closing += MainWindow_Closing;
+        }
+
+        /// <summary>
+        /// Handles property changed events from the view model.
+        /// </summary>
+        private void HandlePropertyChanged(MainWindowViewModel vm, System.ComponentModel.PropertyChangedEventArgs args)
+        {
+            HandleImagePropertyChanged(vm, args);
+            HandleSketchPropertyChanged(vm, args);
+            HandleRoomPropertyChanged(vm, args);
+            HandlePerimeterPropertyChanged(vm, args);
+        }
+
+        /// <summary>
+        /// Handles property changes related to the current image.
+        /// </summary>
+        private void HandleImagePropertyChanged(MainWindowViewModel vm, System.ComponentModel.PropertyChangedEventArgs args)
+        {
+            if (args.PropertyName == nameof(vm.CurrentImage) && vm.CurrentImage != null)
+            {
+                // Use Dispatcher to wait for the layout to update after the image loads
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    FitImageToWindow();
+                }), System.Windows.Threading.DispatcherPriority.Loaded);
+            }
+        }
+
+        /// <summary>
+        /// Handles property changes related to the current sketch.
+        /// </summary>
+        private void HandleSketchPropertyChanged(MainWindowViewModel vm, System.ComponentModel.PropertyChangedEventArgs args)
+        {
+            if (args.PropertyName == nameof(vm.CurrentSketch))
+            {
+                // Sketch replaced; clear any overlays
+                OverlayCanvas.Children.Clear();
+                _perimeterOverlay = null;
+            }
+        }
+
+        /// <summary>
+        /// Handles property changes related to room selection.
+        /// </summary>
+        private void HandleRoomPropertyChanged(MainWindowViewModel vm, System.ComponentModel.PropertyChangedEventArgs args)
+        {
+            if (args.PropertyName == nameof(vm.CurrentSketch.SelectedRoomForScale) || args.PropertyName == nameof(vm.CurrentSketch.Rooms))
+            {
+                RenderSelectedRoomOverlay(vm);
+                UpdateDimensionsTextBox(vm);
+            }
+        }
+
+        /// <summary>
+        /// Handles property changes related to perimeter points.
+        /// </summary>
+        private void HandlePerimeterPropertyChanged(MainWindowViewModel vm, System.ComponentModel.PropertyChangedEventArgs args)
+        {
+            if (args.PropertyName == nameof(vm.CurrentSketch.PerimeterPoints))
+            {
+                RenderPerimeterOverlay(vm);
+            }
         }
 
         private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
@@ -153,21 +187,31 @@ namespace FloorTrace
                     screen.WorkingArea.Width, 
                     screen.WorkingArea.Height);
 
-                // Calculate intersection area
-                var intersection = Rect.Intersect(windowRect, screenBounds);
-                if (!intersection.IsEmpty)
+                if (IsRectangleVisibleOnScreen(windowRect, screenBounds))
                 {
-                    // Check if at least 50% of window is visible
-                    double windowArea = windowRect.Width * windowRect.Height;
-                    double visibleArea = intersection.Width * intersection.Height;
-                    if (visibleArea / windowArea >= 0.5)
-                    {
-                        return true;
-                    }
+                    return true;
                 }
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Checks if a rectangle is visible on a screen with at least 50% visibility.
+        /// </summary>
+        private static bool IsRectangleVisibleOnScreen(Rect windowRect, Rect screenBounds)
+        {
+            // Calculate intersection area
+            var intersection = Rect.Intersect(windowRect, screenBounds);
+            if (intersection.IsEmpty)
+            {
+                return false;
+            }
+
+            // Check if at least 50% of window is visible
+            double windowArea = windowRect.Width * windowRect.Height;
+            double visibleArea = intersection.Width * intersection.Height;
+            return visibleArea / windowArea >= 0.5;
         }
 
         private void CenterImageInView()
@@ -178,41 +222,53 @@ namespace FloorTrace
             ImageScrollViewer.ScrollToVerticalOffset(newVerticalOffset);
         }
 
+        /// <summary>
+        /// Handles mouse wheel events for zooming in and out on the floor plan image.
+        /// Implements zoom-to-point functionality where the image zooms toward the mouse cursor position.
+        /// </summary>
+        /// <param name="sender">The ScrollViewer that contains the image.</param>
+        /// <param name="e">Mouse wheel event arguments containing delta and position information.</param>
         private void ImageScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
             if (FloorPlanImage.Source == null) return;
 
+            // Calculate new zoom factor based on wheel direction
             var oldZoom = _zoomFactor;
             var newZoom = _zoomFactor + (e.Delta > 0 ? FloorTrace.Utilities.Constants.ZoomStep : -FloorTrace.Utilities.Constants.ZoomStep);
             _zoomFactor = Math.Max(FloorTrace.Utilities.Constants.MinZoom, Math.Min(FloorTrace.Utilities.Constants.MaxZoom, newZoom));
 
             // Get mouse position relative to the ScrollViewer (viewport)
+            // This is where the user's cursor is on the screen
             var mousePosition = e.GetPosition(ImageScrollViewer);
             
             // Calculate the point in the panning canvas that the mouse is pointing to
+            // This accounts for the current scroll position
             var canvasPoint = new System.Windows.Point(
                 mousePosition.X + ImageScrollViewer.HorizontalOffset,
                 mousePosition.Y + ImageScrollViewer.VerticalOffset
             );
             
             // Calculate the point in the original (unzoomed) image coordinates
+            // This converts from canvas coordinates to image coordinates using the old zoom factor
             var imagePoint = new System.Windows.Point(
                 (canvasPoint.X - PanningCanvas.Width / 2) / oldZoom,
                 (canvasPoint.Y - PanningCanvas.Height / 2) / oldZoom
             );
             
-            // Apply the new zoom
+            // Apply the new zoom transformation
             ZoomTransform.ScaleX = _zoomFactor;
             ZoomTransform.ScaleY = _zoomFactor;
             
             // Calculate new scroll position to keep the mouse point visually fixed
+            // This ensures the point under the cursor stays in the same screen position after zooming
             var newCanvasX = (imagePoint.X * _zoomFactor) + PanningCanvas.Width / 2;
             var newCanvasY = (imagePoint.Y * _zoomFactor) + PanningCanvas.Height / 2;
             
+            // Calculate the new scroll offsets to maintain the visual position
             var newScrollX = newCanvasX - mousePosition.X;
             var newScrollY = newCanvasY - mousePosition.Y;
             
-            // Apply the new scroll position
+            // Apply the new scroll position with bounds checking
             ImageScrollViewer.ScrollToHorizontalOffset(Math.Max(0, newScrollX));
             ImageScrollViewer.ScrollToVerticalOffset(Math.Max(0, newScrollY));
             

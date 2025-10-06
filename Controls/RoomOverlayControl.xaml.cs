@@ -58,6 +58,21 @@ namespace FloorTrace.Controls
 
         private void ResizeFromCorner(DragDeltaEventArgs args, int xSign, int ySign)
         {
+            // Calculate new dimensions based on drag direction
+            var newDimensions = CalculateNewDimensions(args, xSign, ySign);
+            
+            // Apply snapping to wall lines
+            var snappedDimensions = ApplySnappingToEdges(newDimensions, xSign, ySign);
+            
+            // Update overlay properties
+            UpdateOverlayProperties(snappedDimensions);
+        }
+
+        /// <summary>
+        /// Calculates new dimensions based on drag direction and minimum constraints.
+        /// </summary>
+        private (double X, double Y, double Width, double Height) CalculateNewDimensions(DragDeltaEventArgs args, int xSign, int ySign)
+        {
             double minW = FloorTrace.Utilities.Constants.MinControlWidth;
             double minH = FloorTrace.Utilities.Constants.MinControlHeight;
             double newW = Math.Max(minW, OverlayWidth + xSign * args.HorizontalChange);
@@ -68,61 +83,75 @@ namespace FloorTrace.Controls
             if (xSign < 0) newX += OverlayWidth - newW;
             if (ySign < 0) newY += OverlayHeight - newH;
 
-            // Apply snapping to edges (5 pixel threshold)
+            return (newX, newY, newW, newH);
+        }
+
+        /// <summary>
+        /// Applies snapping to wall lines for all edges based on resize direction.
+        /// </summary>
+        private (double X, double Y, double Width, double Height) ApplySnappingToEdges((double X, double Y, double Width, double Height) dimensions, int xSign, int ySign)
+        {
             const double snapThreshold = 5.0;
             
-            // Snap left edge (X position) to vertical lines
-            if (xSign < 0)
-            {
-                var snappedX = SnapToNearestLine(newX, VerticalWallLines, snapThreshold);
-                if (snappedX.HasValue)
-                {
-                    newW += newX - snappedX.Value;
-                    newX = snappedX.Value;
-                }
-            }
+            // Snap horizontal edges to vertical lines
+            SnapEdgeToLines(dimensions.X, dimensions.Width, VerticalWallLines, snapThreshold, xSign, out var snappedX, out var snappedWidth);
             
-            // Snap right edge (X + Width) to vertical lines
-            if (xSign > 0)
-            {
-                var rightEdge = newX + newW;
-                var snappedRight = SnapToNearestLine(rightEdge, VerticalWallLines, snapThreshold);
-                if (snappedRight.HasValue)
-                {
-                    newW = snappedRight.Value - newX;
-                }
-            }
+            // Snap vertical edges to horizontal lines
+            SnapEdgeToLines(dimensions.Y, dimensions.Height, HorizontalWallLines, snapThreshold, ySign, out var snappedY, out var snappedHeight);
             
-            // Snap top edge (Y position) to horizontal lines
-            if (ySign < 0)
-            {
-                var snappedY = SnapToNearestLine(newY, HorizontalWallLines, snapThreshold);
-                if (snappedY.HasValue)
-                {
-                    newH += newY - snappedY.Value;
-                    newY = snappedY.Value;
-                }
-            }
-            
-            // Snap bottom edge (Y + Height) to horizontal lines
-            if (ySign > 0)
-            {
-                var bottomEdge = newY + newH;
-                var snappedBottom = SnapToNearestLine(bottomEdge, HorizontalWallLines, snapThreshold);
-                if (snappedBottom.HasValue)
-                {
-                    newH = snappedBottom.Value - newY;
-                }
-            }
-
             // Ensure minimum dimensions are maintained after snapping
-            newW = Math.Max(minW, newW);
-            newH = Math.Max(minH, newH);
+            double minW = FloorTrace.Utilities.Constants.MinControlWidth;
+            double minH = FloorTrace.Utilities.Constants.MinControlHeight;
+            snappedWidth = Math.Max(minW, snappedWidth);
+            snappedHeight = Math.Max(minH, snappedHeight);
+            
+            return (snappedX, snappedY, snappedWidth, snappedHeight);
+        }
 
-            X = newX;
-            Y = newY;
-            OverlayWidth = newW;
-            OverlayHeight = newH;
+        /// <summary>
+        /// Snaps an edge to the nearest wall line within threshold.
+        /// </summary>
+        private void SnapEdgeToLines(double position, double size, List<float> lines, double threshold, int direction, 
+            out double snappedPosition, out double snappedSize)
+        {
+            snappedPosition = position;
+            snappedSize = size;
+            
+            if (lines == null || lines.Count == 0)
+                return;
+            
+            // Snap start edge (position) to lines
+            if (direction < 0)
+            {
+                var snappedPos = SnapToNearestLine(position, lines, threshold);
+                if (snappedPos.HasValue)
+                {
+                    snappedSize += position - snappedPos.Value;
+                    snappedPosition = snappedPos.Value;
+                }
+            }
+            
+            // Snap end edge (position + size) to lines
+            if (direction > 0)
+            {
+                var endEdge = position + size;
+                var snappedEnd = SnapToNearestLine(endEdge, lines, threshold);
+                if (snappedEnd.HasValue)
+                {
+                    snappedSize = snappedEnd.Value - position;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Updates overlay properties with new dimensions.
+        /// </summary>
+        private void UpdateOverlayProperties((double X, double Y, double Width, double Height) dimensions)
+        {
+            X = dimensions.X;
+            Y = dimensions.Y;
+            OverlayWidth = dimensions.Width;
+            OverlayHeight = dimensions.Height;
 
             Width = OverlayWidth;
             Height = OverlayHeight;

@@ -4,6 +4,7 @@ using System.Windows;
 using System;
 using System.Threading.Tasks;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -159,32 +160,32 @@ namespace FloorTrace
             else
             {
                 // Apply light mode colors (reset to original values)
-                resources["Primary"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3F51B5"));
-                resources["PrimaryContainer"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E8EAF6"));
-                resources["OnPrimary"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFFFFF"));
-                resources["OnPrimaryContainer"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1A237E"));
+                resources["Primary"] = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#3F51B5"));
+                resources["PrimaryContainer"] = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#E8EAF6"));
+                resources["OnPrimary"] = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#FFFFFF"));
+                resources["OnPrimaryContainer"] = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#1A237E"));
                 
-                resources["Secondary"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2196F3"));
-                resources["SecondaryContainer"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E3F2FD"));
-                resources["OnSecondary"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFFFFF"));
-                resources["OnSecondaryContainer"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0D47A1"));
+                resources["Secondary"] = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#2196F3"));
+                resources["SecondaryContainer"] = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#E3F2FD"));
+                resources["OnSecondary"] = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#FFFFFF"));
+                resources["OnSecondaryContainer"] = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#0D47A1"));
                 
-                resources["Tertiary"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#009688"));
-                resources["TertiaryContainer"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E0F2F1"));
-                resources["OnTertiary"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFFFFF"));
-                resources["OnTertiaryContainer"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#004D40"));
+                resources["Tertiary"] = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#009688"));
+                resources["TertiaryContainer"] = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#E0F2F1"));
+                resources["OnTertiary"] = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#FFFFFF"));
+                resources["OnTertiaryContainer"] = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#004D40"));
                 
-                resources["Surface"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FAFAFA"));
-                resources["SurfaceVariant"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EEEEEE"));
-                resources["Background"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFFFFF"));
-                resources["OnSurface"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#212121"));
-                resources["OnSurfaceVariant"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#616161"));
-                resources["Outline"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#BDBDBD"));
-                resources["OutlineVariant"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E0E0E0"));
+                resources["Surface"] = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#FAFAFA"));
+                resources["SurfaceVariant"] = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#EEEEEE"));
+                resources["Background"] = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#FFFFFF"));
+                resources["OnSurface"] = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#212121"));
+                resources["OnSurfaceVariant"] = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#616161"));
+                resources["Outline"] = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#BDBDBD"));
+                resources["OutlineVariant"] = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#E0E0E0"));
                 
-                resources["HoverOverlay"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0A000000"));
-                resources["PressedOverlay"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1A000000"));
-                resources["FocusOverlay"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1F3F51B5"));
+                resources["HoverOverlay"] = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#0A000000"));
+                resources["PressedOverlay"] = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#1A000000"));
+                resources["FocusOverlay"] = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#1F3F51B5"));
                 
                 resources["Elevation1"] = new DropShadowEffect { BlurRadius = 2, ShadowDepth = 1, Opacity = 0.15, Color = Colors.Black };
                 resources["Elevation2"] = new DropShadowEffect { BlurRadius = 4, ShadowDepth = 2, Opacity = 0.18, Color = Colors.Black };

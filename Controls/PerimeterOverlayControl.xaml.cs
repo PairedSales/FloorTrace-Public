@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using FloorTrace.Utilities;
 
 namespace FloorTrace.Controls
 {
@@ -61,8 +62,21 @@ namespace FloorTrace.Controls
             if (_points.Count < 3)
                 return;
 
-            // Create the polygon with Material Design 3 colors
-            _polygon = new Polygon
+            // Create the polygon with Material Design styling
+            _polygon = CreatePolygonWithStyling();
+            _polygon.MouseDown += Polygon_MouseDown;
+            PerimeterCanvas.Children.Add(_polygon);
+
+            // Create vertex thumbs
+            CreateAndAddVertices();
+        }
+
+        /// <summary>
+        /// Creates a polygon with Material Design styling and effects.
+        /// </summary>
+        private Polygon CreatePolygonWithStyling()
+        {
+            var polygon = new Polygon
             {
                 Fill = new SolidColorBrush(System.Windows.Media.Color.FromArgb(26, 33, 150, 243)), // Semi-transparent Material Blue (#2196F3 at 10% opacity)
                 Stroke = new SolidColorBrush(System.Windows.Media.Color.FromRgb(33, 150, 243)), // Material Design Secondary Blue (#2196F3)
@@ -71,7 +85,7 @@ namespace FloorTrace.Controls
             };
             
             // Add subtle shadow effect
-            _polygon.Effect = new System.Windows.Media.Effects.DropShadowEffect
+            polygon.Effect = new System.Windows.Media.Effects.DropShadowEffect
             {
                 BlurRadius = 4,
                 ShadowDepth = 2,
@@ -79,10 +93,14 @@ namespace FloorTrace.Controls
                 Color = System.Windows.Media.Color.FromRgb(33, 150, 243)
             };
 
-            _polygon.MouseDown += Polygon_MouseDown;
-            PerimeterCanvas.Children.Add(_polygon);
+            return polygon;
+        }
 
-            // Create vertex thumbs
+        /// <summary>
+        /// Creates and adds vertex handles to the canvas.
+        /// </summary>
+        private void CreateAndAddVertices()
+        {
             for (int i = 0; i < _points.Count; i++)
             {
                 var vertex = CreateVertex(_points[i], i);
@@ -211,7 +229,7 @@ namespace FloorTrace.Controls
                 var position = e.GetPosition(PerimeterCanvas);
                 
                 // Find the closest edge to insert the new point
-                int insertIndex = FindClosestEdge(new PointF((float)position.X, (float)position.Y));
+                int insertIndex = GeometryHelper.FindClosestEdge(new PointF((float)position.X, (float)position.Y), _points);
                 
                 // Insert the new point
                 _points.Insert(insertIndex + 1, new PointF((float)position.X, (float)position.Y));
@@ -250,7 +268,7 @@ namespace FloorTrace.Controls
             }
 
             // Insert at the closest edge to the click position
-            int insertIndex = FindClosestEdge(new PointF((float)position.X, (float)position.Y));
+            int insertIndex = GeometryHelper.FindClosestEdge(new PointF((float)position.X, (float)position.Y), _points);
             _points.Insert(insertIndex + 1, new PointF((float)position.X, (float)position.Y));
 
             RenderPerimeter();
@@ -258,46 +276,6 @@ namespace FloorTrace.Controls
             e.Handled = true;
         }
 
-        private int FindClosestEdge(PointF point)
-        {
-            double minDistance = double.MaxValue;
-            int closestEdgeIndex = 0;
-
-            for (int i = 0; i < _points.Count; i++)
-            {
-                int j = (i + 1) % _points.Count;
-                var p1 = _points[i];
-                var p2 = _points[j];
-
-                // Calculate distance from point to line segment
-                double distance = DistanceToLineSegment(point, p1, p2);
-                
-                if (distance < minDistance)
-                {
-                    minDistance = distance;
-                    closestEdgeIndex = i;
-                }
-            }
-
-            return closestEdgeIndex;
-        }
-
-        private double DistanceToLineSegment(PointF point, PointF lineStart, PointF lineEnd)
-        {
-            double dx = lineEnd.X - lineStart.X;
-            double dy = lineEnd.Y - lineStart.Y;
-            
-            if (dx == 0 && dy == 0)
-                return Math.Sqrt(Math.Pow(point.X - lineStart.X, 2) + Math.Pow(point.Y - lineStart.Y, 2));
-
-            double t = ((point.X - lineStart.X) * dx + (point.Y - lineStart.Y) * dy) / (dx * dx + dy * dy);
-            t = Math.Max(0, Math.Min(1, t));
-
-            double nearestX = lineStart.X + t * dx;
-            double nearestY = lineStart.Y + t * dy;
-
-            return Math.Sqrt(Math.Pow(point.X - nearestX, 2) + Math.Pow(point.Y - nearestY, 2));
-        }
 
         private void OnPerimeterChanged()
         {

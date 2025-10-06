@@ -41,38 +41,14 @@ namespace FloorTrace.Services
             {
                 try
                 {
-                    var directory = sketch.IsPermanent ? _permanentSketchesDirectory : _sketchesDirectory;
-                    var filePath = Path.Combine(directory, $"{sketch.Id}.json");
-                    
                     // Save images if provided
-                    if (fullImage != null || thumbnail != null)
-                    {
-                        var imageDirectory = Path.Combine(_imagesDirectory, sketch.Id);
-                        Directory.CreateDirectory(imageDirectory);
-                        
-                        if (fullImage != null)
-                        {
-                            var imagePath = Path.Combine(imageDirectory, "image.png");
-                            SaveBitmapImageToPng(fullImage, imagePath);
-                            // Store relative path
-                            sketch.ImagePath = PathUtils.MakeRelativeToAppData(imagePath);
-                            _logger.LogInformation("Saved full image to {Path}", PathUtils.MakeRelativeToAppData(imagePath));
-                        }
-                        
-                        if (thumbnail != null)
-                        {
-                            var thumbnailPath = Path.Combine(imageDirectory, "thumbnail.png");
-                            SaveBitmapImageToPng(thumbnail, thumbnailPath);
-                            // Store relative path
-                            sketch.ThumbnailPath = PathUtils.MakeRelativeToAppData(thumbnailPath);
-                            _logger.LogInformation("Saved thumbnail to {Path}", PathUtils.MakeRelativeToAppData(thumbnailPath));
-                        }
-                    }
+                    SaveSketchImages(sketch, fullImage, thumbnail);
                     
-                    var json = JsonSerializer.Serialize(sketch, _jsonOptions);
+                    // Save sketch metadata
+                    SaveSketchMetadata(sketch);
                     
-                    File.WriteAllText(filePath, json);
-                    _logger.LogInformation("Saved sketch {SketchId} to {Path}", sketch.Id, PathUtils.MakeRelativeToAppData(filePath));
+                    _logger.LogInformation("Saved sketch {SketchId} to {Path}", sketch.Id, 
+                        PathUtils.MakeRelativeToAppData(GetSketchFilePath(sketch)));
                 }
                 catch (Exception ex)
                 {
@@ -81,6 +57,119 @@ namespace FloorTrace.Services
                 }
             }).ConfigureAwait(false);
         }
+
+        /// <summary>
+        /// Saves sketch images (full image and thumbnail) to the appropriate directory.
+        /// </summary>
+        private void SaveSketchImages(Sketch sketch, BitmapImage? fullImage, BitmapImage? thumbnail)
+        {
+            if (fullImage == null && thumbnail == null)
+                return;
+
+            var imageDirectory = Path.Combine(_imagesDirectory, sketch.Id);
+            Directory.CreateDirectory(imageDirectory);
+            
+            if (fullImage != null)
+            {
+                var imagePath = Path.Combine(imageDirectory, "image.png");
+                SaveBitmapImageToPng(fullImage, imagePath);
+                // Store relative path
+                sketch.ImagePath = PathUtils.MakeRelativeToAppData(imagePath);
+                _logger.LogInformation("Saved full image to {Path}", PathUtils.MakeRelativeToAppData(imagePath));
+            }
+            
+            if (thumbnail != null)
+            {
+                var thumbnailPath = Path.Combine(imageDirectory, "thumbnail.png");
+                SaveBitmapImageToPng(thumbnail, thumbnailPath);
+                // Store relative path
+                sketch.ThumbnailPath = PathUtils.MakeRelativeToAppData(thumbnailPath);
+                _logger.LogInformation("Saved thumbnail to {Path}", PathUtils.MakeRelativeToAppData(thumbnailPath));
+            }
+        }
+
+        /// <summary>
+        /// Saves sketch metadata to JSON file.
+        /// </summary>
+        private void SaveSketchMetadata(Sketch sketch)
+        {
+            var filePath = GetSketchFilePath(sketch);
+            var json = JsonSerializer.Serialize(sketch, _jsonOptions);
+            File.WriteAllText(filePath, json);
+        }
+
+        /// <summary>
+        /// Gets the file path for a sketch based on its permanence setting.
+        /// </summary>
+        private string GetSketchFilePath(Sketch sketch)
+        {
+            var directory = sketch.IsPermanent ? _permanentSketchesDirectory : _sketchesDirectory;
+            return Path.Combine(directory, $"{sketch.Id}.json");
+        }
+
+        /// <summary>
+        /// Attempts to load a sketch from permanent or regular sketches directory.
+        /// </summary>
+        private Sketch? TryLoadSketchFromPath(string sketchId)
+        {
+            // Try permanent sketches first
+            var permanentPath = Path.Combine(_permanentSketchesDirectory, $"{sketchId}.json");
+            if (File.Exists(permanentPath))
+            {
+                return LoadSketchFromFile(permanentPath, sketchId);
+            }
+            
+            // Try regular sketches
+            var regularPath = Path.Combine(_sketchesDirectory, $"{sketchId}.json");
+            if (File.Exists(regularPath))
+            {
+                return LoadSketchFromFile(regularPath, sketchId);
+            }
+            
+            return null;
+        }
+
+        /// <summary>
+        /// Loads a sketch from a specific file path.
+        /// </summary>
+        private Sketch LoadSketchFromFile(string filePath, string sketchId)
+        {
+            var json = File.ReadAllText(filePath);
+            var sketch = JsonSerializer.Deserialize<Sketch>(json, _jsonOptions);
+            _logger.LogInformation("Loaded sketch {SketchId} from {Path}", sketchId, filePath);
+            return sketch!;
+        }
+
+        /// <summary>
+        /// Normalizes sketch paths to relative paths.
+        /// </summary>
+        private void NormalizeSketchPaths(Sketch sketch)
+        {
+            if (!string.IsNullOrEmpty(sketch.ImagePath))
+            {
+                sketch.ImagePath = PathUtils.MakeRelativeToAppData(sketch.ImagePath);
+            }
+            if (!string.IsNullOrEmpty(sketch.ThumbnailPath))
+            {
+                sketch.ThumbnailPath = PathUtils.MakeRelativeToAppData(sketch.ThumbnailPath);
+            }
+        }
+
+        /// <summary>
+        /// Loads and attaches thumbnail to sketch if available.
+        /// </summary>
+        private void LoadAndAttachThumbnail(Sketch sketch)
+        {
+            if (!string.IsNullOrEmpty(sketch.ThumbnailPath))
+            {
+                var thumbFull = PathUtils.ResolveToAppData(sketch.ThumbnailPath);
+                if (File.Exists(thumbFull))
+                {
+                    sketch.Thumbnail = LoadBitmapImageFromFile(thumbFull);
+                    _logger.LogInformation("Loaded thumbnail from {Path}", PathUtils.MakeRelativeToAppData(thumbFull));
+                }
+            }
+        }
         
         public async Task<Sketch> LoadSketchAsync(string sketchId)
         {
@@ -88,53 +177,16 @@ namespace FloorTrace.Services
             {
                 try
                 {
-                    Sketch? sketch = null;
-                    
-                    // Try permanent sketches first
-                    var permanentPath = Path.Combine(_permanentSketchesDirectory, $"{sketchId}.json");
-                    if (File.Exists(permanentPath))
-                    {
-                        var json = File.ReadAllText(permanentPath);
-                        sketch = JsonSerializer.Deserialize<Sketch>(json, _jsonOptions);
-                        _logger.LogInformation("Loaded sketch {SketchId} from {Path}", sketchId, permanentPath);
-                    }
-                    else
-                    {
-                        // Try regular sketches
-                        var regularPath = Path.Combine(_sketchesDirectory, $"{sketchId}.json");
-                        if (File.Exists(regularPath))
-                        {
-                            var json = File.ReadAllText(regularPath);
-                            sketch = JsonSerializer.Deserialize<Sketch>(json, _jsonOptions);
-                            _logger.LogInformation("Loaded sketch {SketchId} from {Path}", sketchId, regularPath);
-                        }
-                    }
-                    
+                    // Try to load sketch from file
+                    var sketch = TryLoadSketchFromPath(sketchId);
                     if (sketch == null)
                     {
                         throw new FileNotFoundException($"Sketch with ID {sketchId} not found");
                     }
                     
-                    // Normalize stored paths to relative
-                    if (!string.IsNullOrEmpty(sketch.ImagePath))
-                    {
-                        sketch.ImagePath = PathUtils.MakeRelativeToAppData(sketch.ImagePath);
-                    }
-                    if (!string.IsNullOrEmpty(sketch.ThumbnailPath))
-                    {
-                        sketch.ThumbnailPath = PathUtils.MakeRelativeToAppData(sketch.ThumbnailPath);
-                    }
-
-                    // Load thumbnail if path exists
-                    if (!string.IsNullOrEmpty(sketch.ThumbnailPath))
-                    {
-                        var thumbFull = PathUtils.ResolveToAppData(sketch.ThumbnailPath);
-                        if (File.Exists(thumbFull))
-                        {
-                            sketch.Thumbnail = LoadBitmapImageFromFile(thumbFull);
-                            _logger.LogInformation("Loaded thumbnail from {Path}", PathUtils.MakeRelativeToAppData(thumbFull));
-                        }
-                    }
+                    // Normalize paths and load thumbnail
+                    NormalizeSketchPaths(sketch);
+                    LoadAndAttachThumbnail(sketch);
                     
                     return sketch;
                 }

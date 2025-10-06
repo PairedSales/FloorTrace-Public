@@ -183,62 +183,68 @@ namespace FloorTrace.Services
             {
                 try
                 {
-                    // Convert BitmapImage to System.Drawing.Bitmap
+                    // Convert BitmapImage to System.Drawing.Bitmap for OpenCV processing
                     Bitmap bitmap = BitmapImageToBitmap(image);
                     
-                    // Convert to OpenCV Mat
+                    // Convert to OpenCV Mat format for computer vision operations
                     using var mat = BitmapConverter.ToMat(bitmap);
                     using var gray = new Mat();
                     using var blurred = new Mat();
                     using var edges = new Mat();
                     
-                    // Convert to grayscale
+                    // Convert to grayscale - simplifies edge detection and reduces processing overhead
                     Cv2.CvtColor(mat, gray, ColorConversionCodes.BGR2GRAY);
                     
-                    // Apply Gaussian blur to reduce noise
+                    // Apply Gaussian blur to reduce noise and smooth the image
+                    // This helps eliminate small artifacts that could interfere with edge detection
                     Cv2.GaussianBlur(gray, blurred, new OpenCvSharp.Size(5, 5), Constants.GaussianBlurSigma);
                     
-                    // Apply Canny edge detection
+                    // Apply Canny edge detection to find strong edges in the image
+                    // This identifies the boundaries of walls and other structural elements
                     Cv2.Canny(blurred, edges, Constants.CannyLowThreshold, Constants.CannyHighThreshold);
                     
-                    // Apply morphological operations to close gaps
+                    // Apply morphological operations to close gaps in detected edges
+                    // This helps connect broken wall lines and creates more complete contours
                     using var kernel = Cv2.GetStructuringElement(MorphShapes.Rect, new OpenCvSharp.Size(3, 3));
                     using var closed = new Mat();
                     Cv2.MorphologyEx(edges, closed, MorphTypes.Close, kernel);
                     
-                    // Find contours
+                    // Find contours - these represent the boundaries of objects in the image
                     OpenCvSharp.Point[][] contours;
                     HierarchyIndex[] hierarchy;
                     Cv2.FindContours(closed, out contours, out hierarchy, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
                     
                     if (contours.Length == 0)
                     {
-                        // No contours found, return a default rectangle
+                        // No contours found, return a default rectangle covering most of the image
                         return CreateDefaultPerimeter(mat.Width, mat.Height);
                     }
                     
-                    // Find the largest contour (assuming it's the floor plan perimeter)
+                    // Find the largest contour - this should be the floor plan perimeter
+                    // We assume the floor plan occupies the largest area in the image
                     var largestContour = contours.OrderByDescending(c => Cv2.ContourArea(c)).First();
                     
                     // If using inner edge, erode the contour to account for wall thickness
+                    // This shifts the perimeter inward to measure usable floor space
                     OpenCvSharp.Point[] processedContour = largestContour;
                     if (useInnerEdge)
                     {
                         processedContour = ErodeContourForInnerEdge(largestContour, gray, mat.Size());
                     }
                     
-                    // Approximate the contour to a polygon
+                    // Approximate the contour to a polygon with fewer vertices
+                    // This simplifies the shape while preserving the essential perimeter
                     var epsilon = Constants.ContourApproximationEpsilon * Cv2.ArcLength(processedContour, true);
                     var approxPolygon = Cv2.ApproxPolyDP(processedContour, epsilon, true);
                     
-                    // Convert to List<PointF>
+                    // Convert OpenCV points to .NET PointF objects for use in the application
                     var perimeterPoints = new List<PointF>();
                     foreach (var point in approxPolygon)
                     {
                         perimeterPoints.Add(new PointF(point.X, point.Y));
                     }
                     
-                    // Ensure we have at least 3 points
+                    // Ensure we have at least 3 points to form a valid polygon
                     if (perimeterPoints.Count < Constants.MinPerimeterPoints)
                     {
                         _logger.LogWarning("Detected perimeter has fewer than {MinPoints} points, using default", Constants.MinPerimeterPoints);
@@ -253,7 +259,7 @@ namespace FloorTrace.Services
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error detecting perimeter, returning default rectangle");
-                    // Return a default rectangle on error
+                    // Return a default rectangle on error to ensure the application continues to function
                     return CreateDefaultPerimeter(image.PixelWidth, image.PixelHeight);
                 }
             }).ConfigureAwait(false);
@@ -271,142 +277,221 @@ namespace FloorTrace.Services
             }
         }
         
+        /// <summary>
+        /// Erodes a contour inward to find the inner edge of walls, accounting for wall thickness.
+        /// This algorithm shifts each vertex inward along its normal vector until it reaches the inner wall surface.
+        /// </summary>
+        /// <param name="contour">The outer wall contour to erode.</param>
+        /// <param name="grayImage">The grayscale image for wall thickness measurement.</param>
+        /// <param name="imageSize">The size of the image for bounds checking.</param>
+        /// <returns>The eroded contour representing the inner wall edge.</returns>
         private OpenCvSharp.Point[] ErodeContourForInnerEdge(OpenCvSharp.Point[] contour, Mat grayImage, OpenCvSharp.Size imageSize)
         {
             try
             {
-                // First, approximate the contour to get clean polygon vertices
-                // This gives us the outer wall edge as a simplified polygon
-                var epsilon = Constants.ContourApproximationEpsilon * Cv2.ArcLength(contour, true);
-                var approxPolygon = Cv2.ApproxPolyDP(contour, epsilon, true);
-                
-                _logger.LogDebug("Approximated outer contour to {Count} vertices for inner edge detection", approxPolygon.Length);
-                
-                if (approxPolygon.Length < Constants.MinPerimeterPoints)
-                {
-                    _logger.LogWarning("Too few vertices after approximation, using original contour");
+                // Approximate the contour to get clean polygon vertices
+                var approxPolygon = ApproximateContourToPolygon(contour);
+                if (approxPolygon == null)
                     return contour;
-                }
                 
-                // Create array for the shifted inner vertices
-                var innerVertices = new OpenCvSharp.Point[approxPolygon.Length];
-                var shiftDistances = new List<int>();
+                // Calculate polygon centroid for inward direction determination
+                var centroid = ComputePolygonCentroid(approxPolygon);
                 
-                // For each vertex, shift inward until we find whitespace
-                for (int i = 0; i < approxPolygon.Length; i++)
-                {
-                    var currentVertex = approxPolygon[i];
-                    
-                    // Calculate inward normal direction using adjacent vertices
-                    int prevIdx = (i - 1 + approxPolygon.Length) % approxPolygon.Length;
-                    int nextIdx = (i + 1) % approxPolygon.Length;
-                    
-                    var prevVertex = approxPolygon[prevIdx];
-                    var nextVertex = approxPolygon[nextIdx];
-                    
-                    // Calculate tangent vector (direction along the polygon edge)
-                    double tangentX = nextVertex.X - prevVertex.X;
-                    double tangentY = nextVertex.Y - prevVertex.Y;
-                    
-                    // Normal is perpendicular to tangent (rotate 90 degrees)
-                    // We want the inward normal, so we'll need to determine the correct direction
-                    double normalX = -tangentY;
-                    double normalY = tangentX;
-                    
-                    // Normalize the normal vector
-                    double normalLength = Math.Sqrt(normalX * normalX + normalY * normalY);
-                    if (normalLength < 0.001)
-                    {
-                        // Degenerate case, keep the vertex unchanged
-                        innerVertices[i] = currentVertex;
-                        continue;
-                    }
-                    
-                    normalX /= normalLength;
-                    normalY /= normalLength;
-                    
-                    // Ensure the normal points inward (toward the centroid of the polygon)
-                    // Calculate centroid
-                    double centroidX = 0;
-                    double centroidY = 0;
-                    foreach (var vertex in approxPolygon)
-                    {
-                        centroidX += vertex.X;
-                        centroidY += vertex.Y;
-                    }
-                    centroidX /= approxPolygon.Length;
-                    centroidY /= approxPolygon.Length;
-                    
-                    // Vector from current vertex to centroid
-                    double toCentroidX = centroidX - currentVertex.X;
-                    double toCentroidY = centroidY - currentVertex.Y;
-                    
-                    // Check if normal points inward (dot product with toCentroid should be positive)
-                    double dotProduct = normalX * toCentroidX + normalY * toCentroidY;
-                    if (dotProduct < 0)
-                    {
-                        // Normal points outward, flip it
-                        normalX = -normalX;
-                        normalY = -normalY;
-                    }
-                    
-                    // Use MeasureThicknessAlongNormal to find distance to whitespace
-                    int shiftDistance = MeasureThicknessAlongNormal(currentVertex, normalX, normalY, grayImage);
-                    
-                    if (shiftDistance > 0)
-                    {
-                        shiftDistances.Add(shiftDistance);
-                        
-                        // Shift the vertex inward by the measured distance
-                        int newX = (int)(currentVertex.X + normalX * shiftDistance);
-                        int newY = (int)(currentVertex.Y + normalY * shiftDistance);
-                        
-                        // Clamp to image bounds
-                        newX = Math.Max(0, Math.Min(imageSize.Width - 1, newX));
-                        newY = Math.Max(0, Math.Min(imageSize.Height - 1, newY));
-                        
-                        innerVertices[i] = new OpenCvSharp.Point(newX, newY);
-                    }
-                    else
-                    {
-                        // Couldn't find clear wall edge, keep original vertex
-                        innerVertices[i] = currentVertex;
-                        _logger.LogDebug("Could not detect wall thickness at vertex {Index}, keeping original position", i);
-                    }
-                }
+                // Process each vertex to shift it inward
+                var (innerVertices, shiftDistances) = ShiftVerticesInward(approxPolygon, centroid, grayImage, imageSize);
                 
-                // Validate the result
-                double originalArea = Cv2.ContourArea(approxPolygon);
-                double innerArea = Cv2.ContourArea(innerVertices);
-                
-                // Log statistics
-                if (shiftDistances.Count > 0)
-                {
-                    double avgShift = shiftDistances.Average();
-                    double maxShift = shiftDistances.Max();
-                    double minShift = shiftDistances.Min();
-                    _logger.LogDebug("Inner edge detection: avg shift {Avg:F1}px, min {Min}px, max {Max}px, area reduction {AreaReduction:F1}%",
-                        avgShift, minShift, maxShift, (1 - innerArea / originalArea) * 100);
-                }
-                
-                // Validate the inner contour has a reasonable area (at least 20% of original)
-                if (innerArea > originalArea * 0.2 && innerArea < originalArea)
-                {
-                    _logger.LogDebug("Successfully computed inner edge contour from {OrigArea:F0} to {InnerArea:F0} pixels", 
-                        originalArea, innerArea);
-                    return innerVertices;
-                }
-                else
-                {
-                    _logger.LogWarning("Inner edge contour has invalid area ({InnerArea:F0} vs {OrigArea:F0}), using original contour", 
-                        innerArea, originalArea);
-                    return contour;
-                }
+                // Validate and return the result
+                return ValidateInnerContour(contour, approxPolygon, innerVertices, shiftDistances);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error computing inner edge contour, using original");
                 return contour;
+            }
+        }
+
+        /// <summary>
+        /// Approximates a contour to a simplified polygon with fewer vertices.
+        /// </summary>
+        private OpenCvSharp.Point[]? ApproximateContourToPolygon(OpenCvSharp.Point[] contour)
+        {
+            var epsilon = Constants.ContourApproximationEpsilon * Cv2.ArcLength(contour, true);
+            var approxPolygon = Cv2.ApproxPolyDP(contour, epsilon, true);
+            
+            _logger.LogDebug("Approximated outer contour to {Count} vertices for inner edge detection", approxPolygon.Length);
+            
+            if (approxPolygon.Length < Constants.MinPerimeterPoints)
+            {
+                _logger.LogWarning("Too few vertices after approximation, using original contour");
+                return null;
+            }
+            
+            return approxPolygon;
+        }
+
+        /// <summary>
+        /// Computes the centroid of a polygon.
+        /// </summary>
+        private static OpenCvSharp.Point2f ComputePolygonCentroid(OpenCvSharp.Point[] polygon)
+        {
+            double centroidX = 0;
+            double centroidY = 0;
+            
+            foreach (var vertex in polygon)
+            {
+                centroidX += vertex.X;
+                centroidY += vertex.Y;
+            }
+            
+            centroidX /= polygon.Length;
+            centroidY /= polygon.Length;
+            
+            return new OpenCvSharp.Point2f((float)centroidX, (float)centroidY);
+        }
+
+        /// <summary>
+        /// Shifts all vertices inward along their normal vectors.
+        /// </summary>
+        private (OpenCvSharp.Point[], List<int>) ShiftVerticesInward(
+            OpenCvSharp.Point[] approxPolygon, 
+            OpenCvSharp.Point2f centroid, 
+            Mat grayImage, 
+            OpenCvSharp.Size imageSize)
+        {
+            var innerVertices = new OpenCvSharp.Point[approxPolygon.Length];
+            var shiftDistances = new List<int>();
+            
+            for (int vertexIndex = 0; vertexIndex < approxPolygon.Length; vertexIndex++)
+            {
+                var currentVertex = approxPolygon[vertexIndex];
+                
+                // Calculate inward normal direction
+                var inwardNormal = CalculateInwardNormal(approxPolygon, vertexIndex, centroid);
+                if (inwardNormal == null)
+                {
+                    // Degenerate case, keep original vertex
+                    innerVertices[vertexIndex] = currentVertex;
+                    continue;
+                }
+                
+                // Find wall thickness and shift vertex inward
+                int shiftDistance = FindWallThicknessAlongNormal(currentVertex, inwardNormal.Value, grayImage);
+                
+                if (shiftDistance > 0)
+                {
+                    shiftDistances.Add(shiftDistance);
+                    innerVertices[vertexIndex] = ShiftVertexInward(currentVertex, inwardNormal.Value, shiftDistance, imageSize);
+                }
+                else
+                {
+                    // Couldn't find clear wall edge, keep original vertex
+                    innerVertices[vertexIndex] = currentVertex;
+                    _logger.LogDebug("Could not detect wall thickness at vertex {Index}, keeping original position", vertexIndex);
+                }
+            }
+            
+            return (innerVertices, shiftDistances);
+        }
+
+        /// <summary>
+        /// Calculates the inward normal vector for a vertex.
+        /// </summary>
+        private static OpenCvSharp.Point2f? CalculateInwardNormal(OpenCvSharp.Point[] polygon, int vertexIndex, OpenCvSharp.Point2f centroid)
+        {
+            int prevIdx = (vertexIndex - 1 + polygon.Length) % polygon.Length;
+            int nextIdx = (vertexIndex + 1) % polygon.Length;
+            
+            var prevVertex = polygon[prevIdx];
+            var nextVertex = polygon[nextIdx];
+            var currentVertex = polygon[vertexIndex];
+            
+            // Calculate tangent vector (direction along the polygon edge)
+            double tangentX = nextVertex.X - prevVertex.X;
+            double tangentY = nextVertex.Y - prevVertex.Y;
+            
+            // Normal is perpendicular to tangent (rotate 90 degrees)
+            double normalX = -tangentY;
+            double normalY = tangentX;
+            
+            // Normalize the normal vector to unit length
+            double normalLength = Math.Sqrt(normalX * normalX + normalY * normalY);
+            if (normalLength < 0.001)
+            {
+                return null; // Degenerate case
+            }
+            
+            normalX /= normalLength;
+            normalY /= normalLength;
+            
+            // Ensure the normal points inward (toward the centroid)
+            double toCentroidX = centroid.X - currentVertex.X;
+            double toCentroidY = centroid.Y - currentVertex.Y;
+            
+            double dotProduct = normalX * toCentroidX + normalY * toCentroidY;
+            if (dotProduct < 0)
+            {
+                // Normal points outward, flip it to point inward
+                normalX = -normalX;
+                normalY = -normalY;
+            }
+            
+            return new OpenCvSharp.Point2f((float)normalX, (float)normalY);
+        }
+
+        /// <summary>
+        /// Shifts a vertex inward by the specified distance along the normal vector.
+        /// </summary>
+        private static OpenCvSharp.Point ShiftVertexInward(
+            OpenCvSharp.Point currentVertex, 
+            OpenCvSharp.Point2f inwardNormal, 
+            int shiftDistance, 
+            OpenCvSharp.Size imageSize)
+        {
+            int newX = (int)(currentVertex.X + inwardNormal.X * shiftDistance);
+            int newY = (int)(currentVertex.Y + inwardNormal.Y * shiftDistance);
+            
+            // Clamp to image bounds
+            newX = Math.Max(0, Math.Min(imageSize.Width - 1, newX));
+            newY = Math.Max(0, Math.Min(imageSize.Height - 1, newY));
+            
+            return new OpenCvSharp.Point(newX, newY);
+        }
+
+        /// <summary>
+        /// Validates the inner contour and logs statistics.
+        /// </summary>
+        private OpenCvSharp.Point[] ValidateInnerContour(
+            OpenCvSharp.Point[] originalContour,
+            OpenCvSharp.Point[] approxPolygon,
+            OpenCvSharp.Point[] innerVertices,
+            List<int> shiftDistances)
+        {
+            double originalArea = Cv2.ContourArea(approxPolygon);
+            double innerArea = Cv2.ContourArea(innerVertices);
+            
+            // Log statistics for debugging and monitoring
+            if (shiftDistances.Count > 0)
+            {
+                double avgShift = shiftDistances.Average();
+                double maxShift = shiftDistances.Max();
+                double minShift = shiftDistances.Min();
+                _logger.LogDebug("Inner edge detection: avg shift {Avg:F1}px, min {Min}px, max {Max}px, area reduction {AreaReduction:F1}%",
+                    avgShift, minShift, maxShift, (1 - innerArea / originalArea) * 100);
+            }
+            
+            // Validate the inner contour has a reasonable area (at least 20% of original)
+            const double minAreaRatio = 0.2;
+            if (innerArea > originalArea * minAreaRatio && innerArea < originalArea)
+            {
+                _logger.LogDebug("Successfully computed inner edge contour from {OrigArea:F0} to {InnerArea:F0} pixels", 
+                    originalArea, innerArea);
+                return innerVertices;
+            }
+            else
+            {
+                _logger.LogWarning("Inner edge contour has invalid area ({InnerArea:F0} vs {OrigArea:F0}), using original contour", 
+                    innerArea, originalArea);
+                return originalContour;
             }
         }
         
@@ -443,7 +528,7 @@ namespace FloorTrace.Services
                     normalY /= normalLength;
                     
                     // Sample along the normal to find wall thickness
-                    int thickness = MeasureThicknessAlongNormal(point, normalX, normalY, grayImage);
+                    int thickness = FindWallThicknessAlongNormal(point, new OpenCvSharp.Point2f((float)normalX, (float)normalY), grayImage);
                     if (thickness > 0)
                     {
                         thicknesses.Add(thickness);
@@ -472,24 +557,24 @@ namespace FloorTrace.Services
             }
         }
         
-        private int MeasureThicknessAlongNormal(OpenCvSharp.Point point, double normalX, double normalY, Mat grayImage)
+        private int FindWallThicknessAlongNormal(OpenCvSharp.Point point, OpenCvSharp.Point2f inwardNormal, Mat grayImage)
         {
             try
             {
                 // Sample pixels along the normal direction to find where darkness ends
-                int maxDistance = Constants.MaxWallThicknessPixels;
-                int darkThreshold = 127; // Consider pixels darker than this as part of the wall
+                const int maxDistance = Constants.MaxWallThicknessPixels;
+                const int darkThreshold = 127; // Consider pixels darker than this as part of the wall
+                const int requiredConsecutive = 2; // Need 2 consecutive bright pixels to confirm wall edge
                 
                 int consecutiveBright = 0;
-                int requiredConsecutive = 2; // Need 2 consecutive bright pixels to confirm wall edge
                 
                 for (int distance = 1; distance <= maxDistance; distance++)
                 {
-                    int x = (int)(point.X + normalX * distance);
-                    int y = (int)(point.Y + normalY * distance);
+                    int x = (int)(point.X + inwardNormal.X * distance);
+                    int y = (int)(point.Y + inwardNormal.Y * distance);
                     
                     // Check bounds
-                    if (x < 0 || x >= grayImage.Width || y < 0 || y >= grayImage.Height)
+                    if (!IsPointWithinImageBounds(x, y, grayImage.Width, grayImage.Height))
                     {
                         break;
                     }
@@ -519,6 +604,14 @@ namespace FloorTrace.Services
                 return 0;
             }
         }
+
+        /// <summary>
+        /// Checks if a point is within image bounds.
+        /// </summary>
+        private static bool IsPointWithinImageBounds(int x, int y, int imageWidth, int imageHeight)
+        {
+            return x >= 0 && x < imageWidth && y >= 0 && y < imageHeight;
+        }
         
         private List<PointF> CreateDefaultPerimeter(int width, int height)
         {
@@ -543,51 +636,14 @@ namespace FloorTrace.Services
                     // Convert BitmapImage to System.Drawing.Bitmap
                     Bitmap bitmap = BitmapImageToBitmap(image);
                     
-                    // Convert to OpenCV Mat
-                    using var mat = BitmapConverter.ToMat(bitmap);
-                    using var gray = new Mat();
-                    using var blurred = new Mat();
-                    using var edges = new Mat();
-                    
-                    // Convert to grayscale
-                    Cv2.CvtColor(mat, gray, ColorConversionCodes.BGR2GRAY);
-                    
-                    // Apply Gaussian blur to reduce noise
-                    Cv2.GaussianBlur(gray, blurred, new OpenCvSharp.Size(5, 5), Constants.GaussianBlurSigma);
-                    
-                    // Apply Canny edge detection
-                    Cv2.Canny(blurred, edges, Constants.CannyLowThreshold, Constants.CannyHighThreshold);
+                    // Process image to detect edges
+                    var edges = ProcessImageForEdgeDetection(bitmap);
                     
                     // Detect line segments using Hough Line Transform
-                    var lines = Cv2.HoughLinesP(edges, 1, Math.PI / 180, 50, 50, 10);
+                    var detectedLines = Cv2.HoughLinesP(edges, 1, Math.PI / 180, 50, 50, 10);
                     
-                    var horizontalLines = new HashSet<float>();
-                    var verticalLines = new HashSet<float>();
-                    
-                    // Filter lines for horizontal and vertical only (within 5 degrees of axis-aligned)
-                    const double angleThreshold = 5.0 * Math.PI / 180.0; // 5 degrees in radians
-                    
-                    foreach (var line in lines)
-                    {
-                        var dx = line.P2.X - line.P1.X;
-                        var dy = line.P2.Y - line.P1.Y;
-                        var angle = Math.Atan2(Math.Abs(dy), Math.Abs(dx));
-                        
-                        // Check if line is horizontal (angle close to 0)
-                        if (angle < angleThreshold)
-                        {
-                            // Add the average Y position of this horizontal line
-                            var avgY = (line.P1.Y + line.P2.Y) / 2.0f;
-                            horizontalLines.Add(avgY);
-                        }
-                        // Check if line is vertical (angle close to 90 degrees)
-                        else if (angle > (Math.PI / 2 - angleThreshold))
-                        {
-                            // Add the average X position of this vertical line
-                            var avgX = (line.P1.X + line.P2.X) / 2.0f;
-                            verticalLines.Add(avgX);
-                        }
-                    }
+                    // Classify lines as horizontal or vertical
+                    var (horizontalLines, verticalLines) = ClassifyLinesByOrientation(detectedLines);
                     
                     bitmap.Dispose();
                     
@@ -602,6 +658,98 @@ namespace FloorTrace.Services
                     return (new List<float>(), new List<float>());
                 }
             }).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Processes an image for edge detection using OpenCV operations.
+        /// </summary>
+        private static Mat ProcessImageForEdgeDetection(Bitmap bitmap)
+        {
+            // Convert to OpenCV Mat
+            using var mat = BitmapConverter.ToMat(bitmap);
+            using var gray = new Mat();
+            using var blurred = new Mat();
+            var edges = new Mat();
+            
+            // Convert to grayscale
+            Cv2.CvtColor(mat, gray, ColorConversionCodes.BGR2GRAY);
+            
+            // Apply Gaussian blur to reduce noise
+            Cv2.GaussianBlur(gray, blurred, new OpenCvSharp.Size(5, 5), Constants.GaussianBlurSigma);
+            
+            // Apply Canny edge detection
+            Cv2.Canny(blurred, edges, Constants.CannyLowThreshold, Constants.CannyHighThreshold);
+            
+            return edges;
+        }
+
+        /// <summary>
+        /// Classifies detected lines as horizontal or vertical based on their orientation.
+        /// </summary>
+        private static (HashSet<float> HorizontalLines, HashSet<float> VerticalLines) ClassifyLinesByOrientation(OpenCvSharp.LineSegmentPoint[] detectedLines)
+        {
+            var horizontalLines = new HashSet<float>();
+            var verticalLines = new HashSet<float>();
+            
+            // Filter lines for horizontal and vertical only (within 5 degrees of axis-aligned)
+            const double angleThreshold = 5.0 * Math.PI / 180.0; // 5 degrees in radians
+            
+            foreach (var line in detectedLines)
+            {
+                var orientation = ClassifyLineOrientation(line, angleThreshold);
+                
+                switch (orientation)
+                {
+                    case LineOrientation.Horizontal:
+                        var avgY = (line.P1.Y + line.P2.Y) / 2.0f;
+                        horizontalLines.Add(avgY);
+                        break;
+                    case LineOrientation.Vertical:
+                        var avgX = (line.P1.X + line.P2.X) / 2.0f;
+                        verticalLines.Add(avgX);
+                        break;
+                    case LineOrientation.Diagonal:
+                        // Skip diagonal lines
+                        break;
+                }
+            }
+            
+            return (horizontalLines, verticalLines);
+        }
+
+        /// <summary>
+        /// Classifies a line segment as horizontal, vertical, or diagonal.
+        /// </summary>
+        private static LineOrientation ClassifyLineOrientation(OpenCvSharp.LineSegmentPoint line, double angleThreshold)
+        {
+            var dx = line.P2.X - line.P1.X;
+            var dy = line.P2.Y - line.P1.Y;
+            var angle = Math.Atan2(Math.Abs(dy), Math.Abs(dx));
+            
+            // Check if line is horizontal (angle close to 0)
+            if (angle < angleThreshold)
+            {
+                return LineOrientation.Horizontal;
+            }
+            // Check if line is vertical (angle close to 90 degrees)
+            else if (angle > (Math.PI / 2 - angleThreshold))
+            {
+                return LineOrientation.Vertical;
+            }
+            else
+            {
+                return LineOrientation.Diagonal;
+            }
+        }
+
+        /// <summary>
+        /// Enumeration of line orientations for classification.
+        /// </summary>
+        private enum LineOrientation
+        {
+            Horizontal,
+            Vertical,
+            Diagonal
         }
     }
 }
