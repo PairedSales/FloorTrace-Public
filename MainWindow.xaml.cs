@@ -37,8 +37,6 @@ namespace FloorTrace
             
             LoadWindowSettings();
             
-            // Initialize prior sketches visibility to hidden by default
-            UpdatePriorSketchesVisibility(_viewModel.IsPriorSketchesVisible);
 
             // Add a handler for when a new image is loaded to center it
             var vm = _viewModel;
@@ -81,10 +79,6 @@ namespace FloorTrace
                         HandleWorkflowStateChange(vm);
                     }
                     
-                    if (args.PropertyName == nameof(vm.IsPriorSketchesVisible))
-                    {
-                        UpdatePriorSketchesVisibility(vm.IsPriorSketchesVisible);
-                    }
                 };
             }
             
@@ -198,14 +192,39 @@ namespace FloorTrace
         {
             if (FloorPlanImage.Source == null) return;
 
+            var oldZoom = _zoomFactor;
             var newZoom = _zoomFactor + (e.Delta > 0 ? FloorTrace.Utilities.Constants.ZoomStep : -FloorTrace.Utilities.Constants.ZoomStep);
             _zoomFactor = Math.Max(FloorTrace.Utilities.Constants.MinZoom, Math.Min(FloorTrace.Utilities.Constants.MaxZoom, newZoom));
 
-            var mousePosition = e.GetPosition(ImageGrid);
-            ZoomTransform.CenterX = mousePosition.X;
-            ZoomTransform.CenterY = mousePosition.Y;
+            // Get mouse position relative to the ScrollViewer (viewport)
+            var mousePosition = e.GetPosition(ImageScrollViewer);
+            
+            // Calculate the point in the panning canvas that the mouse is pointing to
+            var canvasPoint = new System.Windows.Point(
+                mousePosition.X + ImageScrollViewer.HorizontalOffset,
+                mousePosition.Y + ImageScrollViewer.VerticalOffset
+            );
+            
+            // Calculate the point in the original (unzoomed) image coordinates
+            var imagePoint = new System.Windows.Point(
+                (canvasPoint.X - PanningCanvas.Width / 2) / oldZoom,
+                (canvasPoint.Y - PanningCanvas.Height / 2) / oldZoom
+            );
+            
+            // Apply the new zoom
             ZoomTransform.ScaleX = _zoomFactor;
             ZoomTransform.ScaleY = _zoomFactor;
+            
+            // Calculate new scroll position to keep the mouse point visually fixed
+            var newCanvasX = (imagePoint.X * _zoomFactor) + PanningCanvas.Width / 2;
+            var newCanvasY = (imagePoint.Y * _zoomFactor) + PanningCanvas.Height / 2;
+            
+            var newScrollX = newCanvasX - mousePosition.X;
+            var newScrollY = newCanvasY - mousePosition.Y;
+            
+            // Apply the new scroll position
+            ImageScrollViewer.ScrollToHorizontalOffset(Math.Max(0, newScrollX));
+            ImageScrollViewer.ScrollToVerticalOffset(Math.Max(0, newScrollY));
             
             e.Handled = true;
         }
@@ -398,19 +417,6 @@ namespace FloorTrace
             OverlayCanvas.Children.Add(_perimeterOverlay);
         }
 
-        private void UpdatePriorSketchesVisibility(bool isVisible)
-        {
-            if (isVisible)
-            {
-                SplitterColumn.Width = new GridLength(5, GridUnitType.Pixel);
-                PriorSketchesColumn.Width = new GridLength(1, GridUnitType.Star);
-            }
-            else
-            {
-                SplitterColumn.Width = new GridLength(0);
-                PriorSketchesColumn.Width = new GridLength(0);
-            }
-        }
 
         private void HandleWorkflowStateChange(MainWindowViewModel vm)
         {

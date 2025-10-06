@@ -11,6 +11,7 @@ using CommunityToolkit.Mvvm.Input;
 using FloorTrace.Models;
 using FloorTrace.Services;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
 using System.Diagnostics;
 
 namespace FloorTrace.ViewModels
@@ -23,6 +24,7 @@ namespace FloorTrace.ViewModels
         private readonly IAreaCalculationService _areaCalculationService;
         private readonly IStorageService _storageService;
         private readonly IDialogService _dialogService;
+        private readonly IConfiguration _configuration;
         
         [ObservableProperty]
         private Sketch currentSketch;
@@ -35,13 +37,18 @@ namespace FloorTrace.ViewModels
         [ObservableProperty]
         private bool isPriorSketchesVisible = false;
         
+        public bool IsSavingEnabled { get; }
+        
+        public int MaxSavedSketches { get; }
+        
         public MainWindowViewModel(
             ILogger<MainWindowViewModel> logger,
             IImageProcessingService imageProcessingService,
             IScaleCalculationService scaleCalculationService,
             IAreaCalculationService areaCalculationService,
             IStorageService storageService,
-            IDialogService dialogService)
+            IDialogService dialogService,
+            IConfiguration configuration)
         {
             _logger = logger;
             _imageProcessingService = imageProcessingService;
@@ -49,6 +56,11 @@ namespace FloorTrace.ViewModels
             _areaCalculationService = areaCalculationService;
             _storageService = storageService;
             _dialogService = dialogService;
+            _configuration = configuration;
+            
+            // Read saving settings from configuration
+            IsSavingEnabled = _configuration.GetValue<bool>("ApplicationSettings:IsSavingEnabled");
+            MaxSavedSketches = _configuration.GetValue<int>("ApplicationSettings:MaxSavedSketches");
             
             CurrentSketch = new Sketch();
             PriorSketches = _priorSketches;
@@ -418,6 +430,13 @@ namespace FloorTrace.ViewModels
         {
             try
             {
+                // Check if saving is enabled
+                if (!IsSavingEnabled)
+                {
+                    _logger.LogDebug("Skipping auto-save, saving is disabled");
+                    return;
+                }
+                
                 // Only auto-save if we have detected a room
                 if (CurrentSketch.CurrentState < WorkflowState.RoomDetected)
                 {
@@ -563,7 +582,15 @@ namespace FloorTrace.ViewModels
         {
             try
             {
-                var sketches = await _storageService.LoadRecentSketchesAsync(Utilities.Constants.MaxRecentSketches);
+                // If saving is disabled, don't load prior sketches
+                if (!IsSavingEnabled)
+                {
+                    PriorSketches.Clear();
+                    _logger.LogInformation("Saving is disabled, clearing prior sketches list");
+                    return;
+                }
+                
+                var sketches = await _storageService.LoadRecentSketchesAsync(MaxSavedSketches);
                 
                 // Update UI collection
                 PriorSketches.Clear();

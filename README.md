@@ -11,13 +11,14 @@ See ExampleFloorplan.png for a sample floorplan sketch.
 - ✏️ **Manual Scale Adjustment** - Edit detected room dimensions and scale manually
 - 🖊️ **Automatic Perimeter Tracing** - Automatic perimeter tracing
 - 📐 **Area Calculation** - Precise square footage calculation
-- 💾 **Auto-Save** - Last 25 sketches saved automatically
-- ⭐ **Permanent Storage** - Save important sketches forever
+- 💾 **Auto-Save** - Configurable auto-save (disabled by default, max 25 sketches)
+- ⭐ **Permanent Storage** - Save important sketches forever (when saving enabled)
 
 ### User Interface
 - Intuitive toolbar with all essential functions
 - Large canvas area for working with floor plans
-- Side panel showing recent sketches with thumbnails
+- Toggleable side panel showing recent sketches with thumbnails
+- Mouse wheel zoom with fit-to-window functionality
 - Keyboard shortcuts for common actions
 
 ### Basic Workflow
@@ -53,17 +54,39 @@ See ExampleFloorplan.png for a sample floorplan sketch.
 
 
 5. **Save and Recall Past Sketches** 
-   - The last 25 sketches are saved automatically and displayed in the side panel
-   - Thumbnails show a preview of each floor plan.
+   - When saving is enabled, sketches are saved automatically and displayed in the side panel
+   - The number of saved sketches is configurable (default: 25)
+   - Thumbnails show a preview of each floor plan with area and date information
    - Click any sketch in the "Prior Sketches" panel to reload it
-   - To keep a sketch permanently, hit `Ctrl+S' or select the save button
-   - The sketch will be marked as permanent and won't be auto-deleted
+   - The side panel can be toggled on/off using the "Prior Sketches" button
+   - Note: Saving is disabled by default and can be enabled in appsettings.json
 
 ### Keyboard Shortcuts
 
 - `Ctrl+V` - Load Image from Clipboard
 - `Ctrl+O` - Load Image
-- `Ctrl+S` - Save Sketch Permanently
+- Mouse Wheel - Zoom in/out on image
+- Fit to Window button - Auto-fit image to viewport
+
+## Configuration
+
+The application can be configured by modifying `appsettings.json`:
+
+```json
+{
+  "ApplicationSettings": {
+    "IsSavingEnabled": false,
+    "MaxSavedSketches": 25
+  }
+}
+```
+
+### Configuration Options
+
+- **IsSavingEnabled**: Enable/disable saving functionality (default: false)
+- **MaxSavedSketches**: Maximum number of sketches to save when saving is enabled (default: 25)
+
+To enable saving, set `"IsSavingEnabled": true` in the configuration file and restart the application.
 
 ## Project Structure
 
@@ -74,19 +97,26 @@ FloorTrace/
 ├── MainWindow.xaml             # Main window UI layout
 ├── MainWindow.xaml.cs          # Main window code-behind
 ├── FloorTrace.csproj           # Project file with dependencies
+├── appsettings.json            # Application configuration
 ├── Models/
-│   └── Sketch.cs               # Data models for sketches and rooms
+│   ├── Sketch.cs               # Data models for sketches and rooms
+│   └── WindowSettings.cs       # Window state persistence
 ├── ViewModels/
 │   └── MainWindowViewModel.cs  # Main window business logic
-└── Services/
-    ├── IImageProcessingService.cs      # Image loading and processing interface
-    ├── ImageProcessingService.cs       # Image loading and processing implementation
-    ├── IScaleCalculationService.cs     # Scale calculation interface
-    ├── ScaleCalculationService.cs      # Scale calculation implementation
-    ├── IAreaCalculationService.cs      # Area calculation interface
-    ├── AreaCalculationService.cs       # Area calculation implementation
-    ├── IStorageService.cs              # Storage interface
-    └── StorageService.cs               # Storage implementation
+├── Services/
+│   ├── IImageProcessingService.cs      # Image loading and processing interface
+│   ├── ImageProcessingService.cs       # Image loading and processing implementation
+│   ├── IScaleCalculationService.cs     # Scale calculation interface
+│   ├── ScaleCalculationService.cs      # Scale calculation implementation
+│   ├── IAreaCalculationService.cs      # Area calculation interface
+│   ├── AreaCalculationService.cs       # Area calculation implementation
+│   ├── IStorageService.cs              # Storage interface
+│   ├── StorageService.cs               # Storage implementation
+│   ├── IDialogService.cs               # Dialog service interface
+│   └── DialogService.cs                # Dialog service implementation
+└── Utilities/
+    ├── Constants.cs             # Application constants
+    └── DimensionParser.cs       # Dimension parsing utilities
 ```
 
 ## Architecture
