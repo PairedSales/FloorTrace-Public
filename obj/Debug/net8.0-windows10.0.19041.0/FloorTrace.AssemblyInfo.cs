@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("FloorTrace")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e76b9ab16aa4d1641532993e20ff938c89113f18")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ee936225043eb314ab8d5de52bf671bdc08fbab0")]
 [assembly: System.Reflection.AssemblyProductAttribute("FloorTrace")]
 [assembly: System.Reflection.AssemblyTitleAttribute("FloorTrace")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

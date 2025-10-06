@@ -2,6 +2,8 @@
 
 **FloorTrace** is a modern Windows application for calculating the area of real estate floor plan sketches that only show room dimensions. It automatically reads the room dimensions, finds the rooms, sets the scale, traces the perimeter, and calculates precise floor plan area.
 
+See ExampleFloorplan.png for a sample floorplan sketch.
+
 ### Core Functionality
 - 📸 **Image Loading** - Support for JPG, PNG, BMP, TIF, and TIFF floor plan images
 - 🔍 **Automatic Dimension Detection** - OCR-based room dimension recognition
@@ -16,7 +18,6 @@
 - Intuitive toolbar with all essential functions
 - Large canvas area for working with floor plans
 - Side panel showing recent sketches with thumbnails
-- Real-time results display (scale, perimeter, area)
 - Keyboard shortcuts for common actions
 
 ### Basic Workflow
@@ -35,10 +36,11 @@
    - The user will select a room (the first one detected) and click "Use Selected Room for Scale" button to finalize.
 
 3. **Trace Perimeter**
-   - The "Trace Perimeter" button automatically finds the exterior edges or curves
-   - The traced area will be highlighted (Important: The room overlays from the previous step will disappear for later use if necessary)
-   - The user is able to modify the outline if there are errors
-   - Click "Calculate Area" to finalize
+   - The "Trace Perimeter" button automatically finds the exterior edges of the floorplan sketch.
+   - The sketches are polygons and in very rare cases there are curved walls.
+   - The traced area will be highlighted (Important: The room overlays from the previous step will disappear for later use)
+   - The user is able to modify the automatic outline by clicking and dragging vertices
+   - Double click adds a new point.  Right click removes the point.
 
 4. **Calculate Area**
    - Results appear showing:
@@ -107,7 +109,6 @@ FloorTrace follows the **MVVM (Model-View-ViewModel)** pattern for clean separat
 - Sets the pixels-per-foot scale based on the user selected room
 
 #### Area Calculation Service
-- **Green's Theorem** for area calculation
 - Automatic pixel-to-feet conversion using scale
 - Also calculates side lengths for display
 
@@ -116,43 +117,16 @@ FloorTrace follows the **MVVM (Model-View-ViewModel)** pattern for clean separat
 - Automatic cleanup of old non-permanent sketches
 - Separate storage for permanent sketches
 
-## Algorithms
-
-### Area Calculation (Green’s theorem)
-
-The app uses Green’s theorem to calculate the area of the floorplan traced by the user.
-
-### Scale Calculation
-
-Scale is calculated from room dimensions:
-
-\[
-\text{Scale} = \frac{\text{Pixel Distance}}{\text{Real Distance (feet)}}
-\]
-
-### Features
-- [ ] Full OCR integration using Windows.Media.Ocr
-- [ ] Machine learning-based floor plan element detection
-- [ ] Automatic perimeter detection
-- [ ] Room-by-room area breakdown
-
 ### Future Features
-- [ ] Multi-floor support (multiple area calculations for the same image)
+- [ ] Multiple room selection
 - [ ] Measurement annotation tools
-
-## Dependencies
+- [ ] Multi-floor support (multiple area calculations for the same image)
 
 ### Core Dependencies
 - **.NET 8.0** - Runtime framework
 - **WPF (Windows Presentation Foundation)** - UI framework
 - **Microsoft.Toolkit.Mvvm** - MVVM framework for commands and data binding
 - **System.Text.Json** - JSON serialization for data persistence
-
-### Future Dependencies (to be added)
-- **Windows.Media.Ocr** - Optical Character Recognition for room dimension detection
-- **OpenCV.NET** or **Emgu.CV** - Computer vision for image processing and perimeter detection
-- **Microsoft.Extensions.DependencyInjection** - Dependency injection container
-- **Microsoft.Extensions.Logging** - Logging framework
 
 ### System Requirements
 - Windows 10/11 (x64)
