@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Text.Json.Serialization;
 using System.Windows.Media.Imaging;
 
 namespace FloorTrace.Models
@@ -10,7 +11,6 @@ namespace FloorTrace.Models
         NoImage,
         ImageLoaded,
         RoomDetected,
-        ScaleSet,
         PerimeterTraced,
         AreaCalculated
     }
@@ -25,6 +25,9 @@ namespace FloorTrace.Models
         
         // Image data
         public string ImagePath { get; set; } = string.Empty;
+        public string ThumbnailPath { get; set; } = string.Empty;
+        
+        [JsonIgnore]
         public BitmapImage? Thumbnail { get; set; }
         
         // Analysis results

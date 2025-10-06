@@ -194,9 +194,16 @@ namespace FloorTrace.ViewModels
                     CurrentSketch.Rooms = detectedRooms;
                     CurrentSketch.SelectedRoomForScale = detectedRooms.First();
                     CurrentSketch.CurrentState = WorkflowState.RoomDetected;
+                    
+                    // Automatically calculate scale when room is detected
+                    await CalculateScaleAsync();
+                    
                     _logger.LogInformation("Detected room: {Room} with dimensions {Dims}", CurrentSketch.SelectedRoomForScale.Name, CurrentSketch.SelectedRoomForScale.Dimensions);
                     OnPropertyChanged(nameof(CurrentSketch.Rooms));
                     OnPropertyChanged(nameof(CurrentSketch.SelectedRoomForScale));
+                    
+                    // Auto-save after room detection
+                    await AutoSaveSketchAsync();
                 }
                 else
                 {
@@ -221,33 +228,27 @@ namespace FloorTrace.ViewModels
             }
         }
         
-        [RelayCommand]
-        private async Task SetScaleAsync()
+        private async Task CalculateScaleAsync()
         {
             try
             {
                 if (CurrentImage == null || CurrentSketch?.SelectedRoomForScale == null)
-                {
-                    _logger.LogWarning("Cannot set scale: no image or no selected room.");
-                    await _dialogService.ShowWarningAsync(
-                        "Please load an image and detect a room before setting the scale.",
-                        "Cannot Set Scale");
                     return;
-                }
 
                 var scale = await _scaleCalculationService.CalculateScaleFromRoomAsync(CurrentSketch.SelectedRoomForScale, CurrentImage);
                 CurrentSketch.Scale = scale;
-                CurrentSketch.CurrentState = WorkflowState.ScaleSet;
                 OnPropertyChanged(nameof(ScaleText));
-                _logger.LogInformation("Scale set to {Scale:F2} px/ft", scale);
+                _logger.LogInformation("Scale calculated to {Scale:F2} px/ft", scale);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error setting scale");
-                await _dialogService.ShowErrorAsync(
-                    "Failed to calculate the scale. Please verify the room dimensions are correct.",
-                    "Scale Calculation Error");
+                _logger.LogError(ex, "Error calculating scale");
             }
+        }
+
+        public async void RecalculateScale()
+        {
+            await CalculateScaleAsync();
         }
         
         [RelayCommand]
@@ -275,6 +276,9 @@ namespace FloorTrace.ViewModels
                 
                 // Notify UI of changes
                 OnPropertyChanged(nameof(CurrentSketch.PerimeterPoints));
+                
+                // Auto-save after perimeter traced
+                await AutoSaveSketchAsync();
             }
             catch (Exception ex)
             {
@@ -336,6 +340,9 @@ namespace FloorTrace.ViewModels
                 OnPropertyChanged(nameof(AreaText));
                 OnPropertyChanged(nameof(CurrentSketch.CurrentState));
                 IsResultsPanelVisible = true;
+                
+                // Auto-save after area calculated
+                await AutoSaveSketchAsync();
             }
             catch (Exception ex)
             {
@@ -407,32 +414,81 @@ namespace FloorTrace.ViewModels
             }
         }
 
-        [RelayCommand]
-        private async Task SaveSketchAsync()
+        private async Task AutoSaveSketchAsync()
         {
             try
             {
-                CurrentSketch.IsPermanent = true;
+                // Only auto-save if we have detected a room
+                if (CurrentSketch.CurrentState < WorkflowState.RoomDetected)
+                {
+                    _logger.LogDebug("Skipping auto-save, no room detected yet");
+                    return;
+                }
+                
                 CurrentSketch.DateModified = DateTime.Now;
                 
-                // Save to storage
-                await _storageService.SaveSketchAsync(CurrentSketch);
+                // Save to storage with images (auto-saved sketches are not permanent)
+                await _storageService.SaveSketchAsync(CurrentSketch, _currentImage, CurrentSketch.Thumbnail);
                 
-                _logger.LogInformation("Sketch {SketchId} saved permanently", CurrentSketch.Id);
+                _logger.LogInformation("Sketch {SketchId} auto-saved", CurrentSketch.Id);
                 
                 // Refresh the list
                 await LoadPriorSketchesAsync();
-                
-                await _dialogService.ShowInfoAsync(
-                    "Sketch saved successfully.",
-                    "Save Complete");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error saving sketch");
+                _logger.LogError(ex, "Error auto-saving sketch");
+                // Don't show error dialog for auto-save failures
+            }
+        }
+        
+        [RelayCommand]
+        private async Task LoadPriorSketchAsync(string sketchId)
+        {
+            try
+            {
+                // Save current sketch if it has a detected room
+                if (CurrentSketch.CurrentState >= WorkflowState.RoomDetected)
+                {
+                    await AutoSaveSketchAsync();
+                }
+                
+                // Load the selected sketch
+                var loadedSketch = await _storageService.LoadSketchAsync(sketchId);
+                
+                // Load the full image
+                BitmapImage? fullImage = null;
+                if (!string.IsNullOrEmpty(loadedSketch.ImagePath) && File.Exists(loadedSketch.ImagePath))
+                {
+                    fullImage = await _storageService.LoadImageFromPathAsync(loadedSketch.ImagePath);
+                }
+                
+                // Update current sketch and image
+                CurrentSketch = loadedSketch;
+                _currentImage = fullImage;
+                
+                // Notify UI of changes
+                OnPropertyChanged(nameof(CurrentImage));
+                OnPropertyChanged(nameof(ScaleText));
+                OnPropertyChanged(nameof(SideLengthsText));
+                OnPropertyChanged(nameof(AreaText));
+                OnPropertyChanged(nameof(CurrentSketch));
+                OnPropertyChanged(nameof(CurrentSketch.Rooms));
+                OnPropertyChanged(nameof(CurrentSketch.SelectedRoomForScale));
+                OnPropertyChanged(nameof(CurrentSketch.PerimeterPoints));
+                OnPropertyChanged(nameof(CurrentSketch.CurrentState));
+                
+                // Show results panel if area was calculated
+                IsResultsPanelVisible = CurrentSketch.CurrentState == WorkflowState.AreaCalculated;
+                
+                _logger.LogInformation("Loaded sketch {SketchId}", sketchId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error loading sketch {SketchId}", sketchId);
                 await _dialogService.ShowErrorAsync(
-                    "Failed to save the sketch. Please try again.",
-                    "Save Error");
+                    "Failed to load the sketch. The sketch file may be corrupted or the image file may be missing.",
+                    "Load Sketch Error");
             }
         }
         

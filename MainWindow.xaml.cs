@@ -36,6 +36,9 @@ namespace FloorTrace
 #endif
             
             LoadWindowSettings();
+            
+            // Initialize prior sketches visibility to hidden by default
+            UpdatePriorSketchesVisibility(_viewModel.IsPriorSketchesVisible);
 
             // Add a handler for when a new image is loaded to center it
             var vm = _viewModel;
@@ -48,7 +51,7 @@ namespace FloorTrace
                         // Use Dispatcher to wait for the layout to update after the image loads
                         Dispatcher.BeginInvoke(new Action(() =>
                         {
-                            CenterImageInView();
+                            FitImageToWindow();
                         }), System.Windows.Threading.DispatcherPriority.Loaded);
                     }
 
@@ -239,12 +242,6 @@ namespace FloorTrace
 
         
 
-        private void ResetZoom_Click(object sender, RoutedEventArgs e)
-        {
-            _zoomFactor = FloorTrace.Utilities.Constants.DefaultZoom;
-            ApplyCenterZoom();
-        }
-        
         private void ApplyCenterZoom()
         {
             ZoomTransform.CenterX = ImageScrollViewer.ViewportWidth / 2;
@@ -253,14 +250,40 @@ namespace FloorTrace
             ZoomTransform.ScaleY = _zoomFactor;
         }
 
-        private void FitToWindow_Click(object sender, RoutedEventArgs e)
+        private void FitImageToWindow()
         {
             if (FloorPlanImage.Source != null)
             {
-                _zoomFactor = FloorTrace.Utilities.Constants.DefaultZoom;
+                // Get the actual image dimensions
+                var imageWidth = FloorPlanImage.Source.Width;
+                var imageHeight = FloorPlanImage.Source.Height;
+                
+                // Get the available viewport space
+                var viewportWidth = ImageScrollViewer.ViewportWidth;
+                var viewportHeight = ImageScrollViewer.ViewportHeight;
+                
+                // Calculate zoom factors to fit both width and height
+                var zoomX = viewportWidth / imageWidth;
+                var zoomY = viewportHeight / imageHeight;
+                
+                // Use the smaller zoom factor to ensure the image fits completely
+                _zoomFactor = Math.Min(zoomX, zoomY);
+                
+                // Apply some padding (10% smaller)
+                _zoomFactor *= 0.9;
+                
+                // Ensure we stay within zoom limits
+                _zoomFactor = Math.Max(FloorTrace.Utilities.Constants.MinZoom, 
+                                      Math.Min(FloorTrace.Utilities.Constants.MaxZoom, _zoomFactor));
+                
                 ApplyCenterZoom();
-                CenterImageInView(); // Re-center after fitting
+                CenterImageInView();
             }
+        }
+
+        private void FitToWindow_Click(object sender, RoutedEventArgs e)
+        {
+            FitImageToWindow();
         }
 
         private void RenderSelectedRoomOverlay(MainWindowViewModel vm)
@@ -283,6 +306,8 @@ namespace FloorTrace
             {
                 // Sync position and size back into model
                 room.Bounds = new System.Drawing.RectangleF((float)overlay.X, (float)overlay.Y, (float)overlay.OverlayWidth, (float)overlay.OverlayHeight);
+                // Recalculate scale when overlay changes
+                _viewModel.RecalculateScale();
             };
 
             OverlayCanvas.Children.Add(overlay);
@@ -319,6 +344,8 @@ namespace FloorTrace
                 room.WidthFeet = w;
                 room.HeightFeet = h;
                 room.Dimensions = dimsText;
+                // Recalculate scale when dimensions change
+                _viewModel.RecalculateScale();
             }
             
             await Task.CompletedTask; // Keep method async for future enhancements
@@ -424,6 +451,14 @@ namespace FloorTrace
                         _perimeterOverlay.IsEditable = false;
                     }
                     break;
+            }
+        }
+
+        private async void SketchItem_Click(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is Border border && border.Tag is string sketchId)
+            {
+                await _viewModel.LoadPriorSketchCommand.ExecuteAsync(sketchId);
             }
         }
     }

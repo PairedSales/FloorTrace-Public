@@ -31,9 +31,9 @@ See ExampleFloorplan.png for a sample floorplan sketch.
 2. **Set Scale**
    - Click "Detect Room" to automatically detect the first room for scaling.
    - The app will analyze the image and add a transparent overlay to the detected room.
-   - The overlay will show the detected room dimensions.
-   - The user will be able to modify the overlay's size and placement along with the room dimensions.
-   - The user will select a room (the first one detected) and click "Use Selected Room for Scale" button to finalize.
+   - The overlay will show the detected room dimensions and the scale is calculated automatically.
+   - The user can modify the overlay's size and placement along with the room dimensions.
+   - The scale recalculates automatically whenever the overlay or dimensions are modified.
 
 3. **Trace Perimeter**
    - The "Trace Perimeter" button automatically finds the exterior edges of the floorplan sketch.

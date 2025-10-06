@@ -13,7 +13,6 @@
     <Window.InputBindings>
         <KeyBinding Key="V" Modifiers="Ctrl" Command="{Binding PasteImageCommand}"/>
         <KeyBinding Key="O" Modifiers="Ctrl" Command="{Binding LoadImageCommand}"/>
-        <KeyBinding Key="S" Modifiers="Ctrl" Command="{Binding SaveSketchCommand}"/>
     </Window.InputBindings>
     
     <Grid>
@@ -28,16 +27,13 @@
                 <Button Content="Load Image" Style="{StaticResource ButtonStyle}" Command="{Binding LoadImageCommand}"/>
                 <Button Content="Paste Image" Style="{StaticResource ButtonStyle}" Command="{Binding PasteImageCommand}"/>
                 <Button Content="Detect Room" Style="{StaticResource ButtonStyle}" Command="{Binding DetectRoomCommand}"/>
-                <Button Content="Set Scale" Style="{StaticResource ButtonStyle}" Command="{Binding SetScaleCommand}"/>
                 <Button Content="Trace Perimeter" Style="{StaticResource ButtonStyle}" Command="{Binding TracePerimeterCommand}"/>
                 <Button Content="Calculate Area" Style="{StaticResource ButtonStyle}" Command="{Binding CalculateAreaCommand}"/>
-                <Button Content="Save Sketch" Style="{StaticResource ButtonStyle}" Command="{Binding SaveSketchCommand}"/>
                 <!-- Test button - visible only in DEBUG builds -->
                 <Button Content="Test" Style="{StaticResource ButtonStyle}" Command="{Binding LoadTestImageCommand}" x:Name="TestButton"/>
                 
                 <!-- Zoom Controls -->
                 <Separator Margin="10,0"/>
-                <Button Content="Reset Zoom" Style="{StaticResource ButtonStyle}" Click="ResetZoom_Click"/>
                 <Button Content="Fit to Window" Style="{StaticResource ButtonStyle}" Click="FitToWindow_Click"/>
                 
                 <!-- Prior Sketches button at the far right -->
@@ -141,12 +137,29 @@
                         <ItemsControl ItemsSource="{Binding PriorSketches}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Background="White" Margin="5" Padding="5" 
-                                            BorderBrush="Black" BorderThickness="1">
+                                    <Border Background="White" Margin="5" Padding="8" 
+                                            BorderBrush="Black" BorderThickness="1"
+                                            Cursor="Hand"
+                                            MouseLeftButtonDown="SketchItem_Click"
+                                            Tag="{Binding Id}">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Style.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter Property="Background" Value="LightBlue"/>
+                                                    </Trigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
                                         <StackPanel>
-                                            <Image Source="{Binding Thumbnail}" Height="80" Stretch="Uniform"/>
-                                            <TextBlock Text="{Binding Name}" FontSize="10" TextWrapping="Wrap"/>
-                                            <TextBlock Text="{Binding DateCreated}" FontSize="8" Foreground="Gray"/>
+                                            <Image Source="{Binding Thumbnail}" Height="150" Stretch="Uniform" Margin="0,0,0,5"/>
+                                            <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="Bold" TextWrapping="Wrap" Margin="0,0,0,3"/>
+                                            <TextBlock FontSize="10" Foreground="DarkGray" Margin="0,0,0,2">
+                                                <Run Text="{Binding DateModified, StringFormat='yyyy-MM-dd HH:mm'}"/>
+                                            </TextBlock>
+                                            <TextBlock FontSize="10" Foreground="Green" Margin="0,0,0,2">
+                                                <Run Text="{Binding AreaSquareFeet, StringFormat='{}{0:F1} sq ft'}"/>
+                                            </TextBlock>
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>
