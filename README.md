@@ -42,8 +42,6 @@ See `ExampleFloorplan.png` for a sample floorplan sketch.
 - ✏️ **Manual Scale Adjustment** - Edit detected room dimensions and scale manually with real-time updates
 - 🖊️ **Automatic Perimeter Tracing** - Advanced edge detection with inner/outer wall options
 - 📐 **Area Calculation** - Precise square footage calculation using Green's theorem
-- 💾 **Auto-Save** - Configurable auto-save (disabled by default, max 25 sketches)
-- ⭐ **Permanent Storage** - Save important sketches forever (when saving enabled)
 
 ### Advanced Features
 - 🎯 **Zoom-to-Point** - Mouse wheel zoom that centers on cursor position
@@ -55,7 +53,6 @@ See `ExampleFloorplan.png` for a sample floorplan sketch.
 ### User Interface
 - Intuitive toolbar with all essential functions
 - Large canvas area for working with floor plans
-- Toggleable side panel showing recent sketches with thumbnails
 - Mouse wheel zoom with fit-to-window functionality
 - Keyboard shortcuts for common actions
 
@@ -119,15 +116,6 @@ See `ExampleFloorplan.png` for a sample floorplan sketch.
      - Side Lengths (feet)
      - Total Area (square feet)
 
-
-5. **Save and Recall Past Sketches** 
-   - When saving is enabled, sketches are saved automatically and displayed in the side panel
-   - The number of saved sketches is configurable (default: 25)
-   - Thumbnails show a preview of each floor plan with area and date information
-   - Click any sketch in the "Prior Sketches" panel to reload it
-   - The side panel can be toggled on/off using the "Prior Sketches" button
-   - Note: Saving is disabled by default and can be enabled in appsettings.json
-
 ### Keyboard Shortcuts
 
 - `Ctrl+V` - Load Image from Clipboard
@@ -142,18 +130,14 @@ The application can be configured by modifying `appsettings.json`:
 ```json
 {
   "ApplicationSettings": {
-    "IsSavingEnabled": false,
-    "MaxSavedSketches": 25
+    "UseInnerWallEdge": true
   }
 }
 ```
 
 ### Configuration Options
 
-- **IsSavingEnabled**: Enable/disable saving functionality (default: false)
-- **MaxSavedSketches**: Maximum number of sketches to save when saving is enabled (default: 25)
-
-To enable saving, set `"IsSavingEnabled": true` in the configuration file and restart the application.
+- **UseInnerWallEdge**: Use inner wall edge for perimeter tracing (default: true) - traces along the inner edge of exterior walls, excluding wall thickness from area calculation
 
 ## Project Structure
 
@@ -248,12 +232,7 @@ FloorTrace follows the **MVVM (Model-View-ViewModel)** pattern with dependency i
 - **Algorithms**: Green's theorem, Euclidean distance calculations
 
 ##### Storage Service (`IStorageService`)
-- **Purpose**: Data persistence and sketch management
-- **Key Features**:
-  - JSON-based sketch serialization
-  - Image file management
-  - Automatic cleanup of old sketches
-  - Permanent vs. temporary sketch handling
+- **Purpose**: Data persistence and sketch management (reserved for future features)
 - **Storage Location**: `%LOCALAPPDATA%/FloorTrace/`
 
 ##### Dialog Service (`IDialogService`)
@@ -324,7 +303,7 @@ FloorTrace/
 - **.NET 8.0** - Runtime framework
 - **WPF (Windows Presentation Foundation)** - UI framework
 - **CommunityToolkit.Mvvm** - MVVM framework for commands and data binding
-- **System.Text.Json** - JSON serialization for data persistence
+- **System.Text.Json** - JSON serialization
 - **Microsoft.Extensions.Hosting** - Generic host and dependency injection
 - **Serilog** - Structured logging to rolling log files
 - **OpenCvSharp4** - Computer vision and image processing

@@ -8,6 +8,9 @@ namespace FloorTrace.Services
     /// <summary>
     /// Defines the contract for sketch persistence and storage operations.
     /// This service handles saving, loading, and managing floor plan sketches and their associated images.
+    /// 
+    /// NOTE: Storage functionality is currently disabled in v1.0.0-alpha and reserved for future releases.
+    /// The service implementation is complete and ready for when saving features are enabled.
     /// </summary>
     public interface IStorageService
     {

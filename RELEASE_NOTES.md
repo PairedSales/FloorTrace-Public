@@ -21,8 +21,6 @@ This is the first public alpha release of FloorTrace - a professional-grade Wind
 ### User Experience
 - **Modern UI** - Material Design 3 inspired interface
 - **Keyboard Shortcuts** - Ctrl+O (load), Ctrl+V (paste), mouse wheel zoom
-- **Auto-Save** - Configurable sketch persistence (disabled by default)
-- **Thumbnail Gallery** - Visual history of recent sketches
 - **Comprehensive Logging** - Detailed logs for troubleshooting
 
 ### Technical Highlights
@@ -65,8 +63,6 @@ Edit `appsettings.json` to customize:
 ```json
 {
   "ApplicationSettings": {
-    "IsSavingEnabled": false,
-    "MaxSavedSketches": 25,
     "UseInnerWallEdge": true
   }
 }

@@ -11,6 +11,12 @@ using FloorTrace.Utilities;
 
 namespace FloorTrace.Services
 {
+    /// <summary>
+    /// Provides sketch persistence and storage operations.
+    /// 
+    /// NOTE: Storage functionality is currently disabled in v1.0.0-alpha and reserved for future releases.
+    /// The service is fully implemented and tested, ready to enable when saving features are added to the UI.
+    /// </summary>
     public class StorageService : IStorageService
     {
         private readonly ILogger<StorageService> _logger;
