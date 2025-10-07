@@ -2,7 +2,7 @@
 
 ## 🎉 First Alpha Release
 
-This is the first public alpha release of FloorTrace - a professional-grade Windows application for calculating the area of real estate floor plan sketches using advanced computer vision algorithms.
+This is the first public alpha release of FloorTrace - a Windows application that automatically calculates the square footage of hand-drawn floor plan sketches using advanced computer vision algorithms.
 
 ## ⚠️ Alpha Software Disclaimer
 
@@ -151,4 +151,3 @@ This project is licensed under the MIT License - see the [LICENSE](https://githu
 **Repository**: [FloorTrace-Public](https://github.com/PairedSales/FloorTrace-Public)
 
 Thank you for testing FloorTrace! Your feedback helps make this tool better for everyone. 🚀
-
