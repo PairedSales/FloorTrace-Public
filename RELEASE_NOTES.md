@@ -101,7 +101,7 @@ Edit `appsettings.json` to customize:
 
 ### Reporting Issues
 1. Check the logs in `%LOCALAPPDATA%/FloorTrace/Logs/`
-2. Create an issue on [GitHub](https://github.com/jeffhilborn/FloorTrace-Public/issues)
+2. Create an issue on [GitHub](https://github.com/PairedSales/FloorTrace-Public/issues)
 3. Include:
    - Description of the problem
    - Steps to reproduce
@@ -117,7 +117,7 @@ Edit `appsettings.json` to customize:
 
 ### Building from Source
 ```bash
-git clone https://github.com/jeffhilborn/FloorTrace-Public.git
+git clone https://github.com/PairedSales/FloorTrace-Public.git
 cd FloorTrace-Public
 dotnet restore
 dotnet build
@@ -144,6 +144,8 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) file for
 
 **Version**: 1.0.0-alpha  
 **Release Date**: January 2025  
-**Repository**: [FloorTrace-Public](https://github.com/jeffhilborn/FloorTrace-Public)
+**Repository**: [FloorTrace-Public](https://github.com/PairedSales/FloorTrace-Public)
 
 Thank you for testing FloorTrace! Your feedback helps make this tool better for everyone.
+
+
