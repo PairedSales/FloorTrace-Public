@@ -29,10 +29,6 @@ namespace FloorTrace
             _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
             DataContext = _viewModel;
             
-            // Hide test button in release builds
-#if !DEBUG
-            TestButton.Visibility = Visibility.Collapsed;
-#endif
             
             LoadWindowSettings();
             
@@ -390,14 +386,18 @@ namespace FloorTrace
         private void UpdateDimensionsTextBox(MainWindowViewModel vm)
         {
             var room = vm?.CurrentSketch?.SelectedRoomForScale;
+            
+            // Always show dimensions panel
+            DimensionsPanel.Visibility = Visibility.Visible;
+            
             if (room == null)
             {
-                DimensionsPanel.Visibility = Visibility.Collapsed;
+                // Clear the text when no room is selected
+                RoomDimensionsTextBox.Text = string.Empty;
+                RoomDimensionsTextBox.TextChanged -= OnDimensionsTextChanged;
                 return;
             }
 
-            // Always show dimensions panel when room exists
-            DimensionsPanel.Visibility = Visibility.Visible;
             RoomDimensionsTextBox.Text = string.IsNullOrWhiteSpace(room.Dimensions)
                 ? $"{room.WidthFeet:F1} x {room.HeightFeet:F1}"
                 : room.Dimensions;

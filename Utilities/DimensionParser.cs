@@ -16,11 +16,14 @@ namespace FloorTrace.Utilities
             if (string.IsNullOrWhiteSpace(text))
                 return false;
 
+            // Normalize input to reduce OCR variability (unicode primes, dashes, spacing)
+            text = NormalizeText(text);
+
             var patterns = new[]
             {
-                @"^\s*(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*$",
-                @"^\s*(\d+)\s*'\s*(\d+)?\s*(?:""|″)?\s*[x×]\s*(\d+)\s*'\s*(\d+)?\s*(?:""|″)?\s*$",
-                @"^\s*(\d+(?:\.\d+)?)\s*ft\s*[x×]\s*(\d+(?:\.\d+)?)\s*ft\s*$"
+                @"^\s*(\d+(?:\.\d+)?)\s*[xX×]\s*(\d+(?:\.\d+)?)\s*$",
+                @"^\s*(\d+)\s*'\s*(?:[-–—]\s*)?(\d+)?\s*(?:""|″)?\s*[xX×]\s*(\d+)\s*'\s*(?:[-–—]\s*)?(\d+)?\s*(?:""|″)?\s*$",
+                @"^\s*(\d+(?:\.\d+)?)\s*ft\s*[xX×]\s*(\d+(?:\.\d+)?)\s*ft\s*$"
             };
 
             foreach (var pattern in patterns)
@@ -45,7 +48,7 @@ namespace FloorTrace.Utilities
                 return false;
 
             text = NormalizeText(text);
-            var parts = text.Split(new[] { 'x', '×' }, StringSplitOptions.RemoveEmptyEntries);
+            var parts = text.Split(new[] { 'x', 'X', '×' }, StringSplitOptions.RemoveEmptyEntries);
             
             if (parts.Length != 2)
                 return false;
@@ -62,7 +65,12 @@ namespace FloorTrace.Utilities
         private static string NormalizeText(string text)
         {
             // Replace Unicode prime and double prime with ASCII equivalents
-            return text.Replace("\u2032", "'").Replace("\u2033", "\"");
+            var normalized = text.Replace("\u2032", "'").Replace("\u2033", "\"");
+            // Replace common dash characters with spaces so they don't interfere with parsing
+            normalized = normalized.Replace("–", " ").Replace("—", " ").Replace("-", " ");
+            // Collapse multiple whitespace to a single space and trim
+            normalized = Regex.Replace(normalized, "\\s+", " ").Trim();
+            return normalized;
         }
 
         /// <summary>

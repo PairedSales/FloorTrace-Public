@@ -660,35 +660,6 @@ namespace FloorTrace.ViewModels
             }
         }
         
-        [RelayCommand]
-        private async Task LoadTestImageAsync()
-        {
-            try
-            {
-                // Get the path to ExampleFloorplan.png in the project root
-                string testImagePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "ExampleFloorplan.png");
-                
-                // Check if the file exists
-                if (!File.Exists(testImagePath))
-                {
-                    _logger.LogWarning("Test image not found at: {Path}", PathUtils.RedactUserPath(testImagePath));
-                    await _dialogService.ShowWarningAsync(
-                        $"Test image not found at: {PathUtils.RedactUserPath(testImagePath)}",
-                        "Test Image Not Found");
-                    return;
-                }
-                
-                await LoadImageFromPathAsync(testImagePath);
-                _logger.LogInformation("Test image loaded successfully");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error loading test image");
-                await _dialogService.ShowErrorAsync(
-                    "Failed to load the test image.",
-                    "Test Image Error");
-            }
-        }
 
         [RelayCommand]
         public void OpenLogsFolder()

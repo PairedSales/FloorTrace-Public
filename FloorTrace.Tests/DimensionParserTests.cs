@@ -11,6 +11,9 @@ namespace FloorTrace.Tests
         [InlineData("12 ft x 15 ft", true)]
         [InlineData("12' 6\" x 15' 3\"", true)]
         [InlineData("12×15", true)] // Unicode multiplication sign
+        [InlineData("11' - 5\" x 5' - 10\"", true)]
+        [InlineData("12 X 15", true)]
+        [InlineData("11.5 x 9.25", true)]
         [InlineData("", false)]
         [InlineData("12x", false)]
         [InlineData("x15", false)]
@@ -56,6 +59,57 @@ namespace FloorTrace.Tests
 
             // Assert
             Assert.True(success, "Should successfully parse feet and inches format");
+            Assert.Equal(expectedWidth, actualWidth, precision: 2);
+            Assert.Equal(expectedHeight, actualHeight, precision: 2);
+        }
+
+        [Fact]
+        public void TryParseDimensionsFeet_DashedFeetInches_ReturnsCorrectValues()
+        {
+            // Arrange: "11' - 5\" x 5' - 10\"" format
+            var dimensions = "11' - 5\" x 5' - 10\"";
+            double expectedWidth = 11.0 + (5.0 / 12.0);
+            double expectedHeight = 5.0 + (10.0 / 12.0);
+
+            // Act
+            var success = DimensionParser.TryParseDimensionsFeet(dimensions, out var actualWidth, out var actualHeight);
+
+            // Assert
+            Assert.True(success, "Should successfully parse dashed feet-inches format");
+            Assert.Equal(expectedWidth, actualWidth, precision: 3);
+            Assert.Equal(expectedHeight, actualHeight, precision: 3);
+        }
+
+        [Fact]
+        public void TryParseDimensionsFeet_UppercaseX_ReturnsCorrectValues()
+        {
+            // Arrange: "12 X 15" format
+            var dimensions = "12 X 15";
+            double expectedWidth = 12.0;
+            double expectedHeight = 15.0;
+
+            // Act
+            var success = DimensionParser.TryParseDimensionsFeet(dimensions, out var actualWidth, out var actualHeight);
+
+            // Assert
+            Assert.True(success, "Should successfully parse uppercase X separator");
+            Assert.Equal(expectedWidth, actualWidth, precision: 2);
+            Assert.Equal(expectedHeight, actualHeight, precision: 2);
+        }
+
+        [Fact]
+        public void TryParseDimensionsFeet_DecimalFeet_ReturnsCorrectValues()
+        {
+            // Arrange: "11.5 x 9.25" format
+            var dimensions = "11.5 x 9.25";
+            double expectedWidth = 11.5;
+            double expectedHeight = 9.25;
+
+            // Act
+            var success = DimensionParser.TryParseDimensionsFeet(dimensions, out var actualWidth, out var actualHeight);
+
+            // Assert
+            Assert.True(success, "Should successfully parse decimal feet");
             Assert.Equal(expectedWidth, actualWidth, precision: 2);
             Assert.Equal(expectedHeight, actualHeight, precision: 2);
         }
