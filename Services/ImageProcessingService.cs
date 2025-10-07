@@ -179,6 +179,26 @@ namespace FloorTrace.Services
         
         public async Task<List<PointF>> DetectPerimeterAsync(BitmapImage image, bool useInnerEdge = true)
         {
+            // Try rectilinear detection first (new approach optimized for rectangular floor plans)
+            var result = await TryDetectRectilinearPerimeterAsync(image, useInnerEdge);
+            
+            if (result != null && result.Count >= Constants.MinPerimeterPoints)
+            {
+                _logger.LogInformation("Successfully detected rectilinear perimeter with {Count} vertices", result.Count);
+                return result;
+            }
+            
+            // Fall back to original contour-based method
+            _logger.LogWarning("Rectilinear detection failed, falling back to contour method");
+            return await DetectPerimeterUsingContoursAsync(image, useInnerEdge);
+        }
+
+        /// <summary>
+        /// Detects perimeter using the original contour-based approach.
+        /// This method serves as a fallback when the rectilinear detection fails.
+        /// </summary>
+        private async Task<List<PointF>> DetectPerimeterUsingContoursAsync(BitmapImage image, bool useInnerEdge = true)
+        {
             return await Task.Run(() =>
             {
                 try
@@ -251,7 +271,7 @@ namespace FloorTrace.Services
                         return CreateDefaultPerimeter(mat.Width, mat.Height);
                     }
                     
-                    _logger.LogInformation("Successfully detected perimeter with {PointCount} points (inner edge: {UseInner})", 
+                    _logger.LogInformation("Successfully detected perimeter with {PointCount} points using contour method (inner edge: {UseInner})", 
                         perimeterPoints.Count, useInnerEdge);
                     bitmap.Dispose();
                     return perimeterPoints;
@@ -742,6 +762,417 @@ namespace FloorTrace.Services
             }
         }
 
+        #region Rectilinear Perimeter Detection
+
+        /// <summary>
+        /// Attempts to detect a rectilinear (90-degree angles only) perimeter using line intersection method.
+        /// This is the primary detection method optimized for rectangular, grid-aligned floor plans.
+        /// </summary>
+        private async Task<List<PointF>?> TryDetectRectilinearPerimeterAsync(BitmapImage image, bool useInnerEdge)
+        {
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    // Convert BitmapImage to System.Drawing.Bitmap for OpenCV processing
+                    Bitmap bitmap = BitmapImageToBitmap(image);
+                    
+                    // Process image to detect edges
+                    using var mat = BitmapConverter.ToMat(bitmap);
+                    using var edges = ProcessImageForEdgeDetection(bitmap);
+                    
+                    // Detect horizontal and vertical lines
+                    var (horizontalLines, verticalLines) = DetectRectilinearWalls(edges);
+                    
+                    if (horizontalLines.Count < 2 || verticalLines.Count < 2)
+                    {
+                        _logger.LogWarning("Insufficient lines detected: {HCount} horizontal, {VCount} vertical", 
+                            horizontalLines.Count, verticalLines.Count);
+                        return null;
+                    }
+                    
+                    _logger.LogInformation("Detected {HCount} horizontal lines and {VCount} vertical lines", 
+                        horizontalLines.Count, verticalLines.Count);
+                    
+                    // Detect wall thickness for inner edge adjustment
+                    int wallThickness = DetectWallThicknessFromLines(horizontalLines, verticalLines);
+                    _logger.LogInformation("Detected wall thickness: {Thickness} pixels", wallThickness);
+                    
+                    // Offset lines inward if using inner edge mode
+                    if (useInnerEdge)
+                    {
+                        (horizontalLines, verticalLines) = OffsetLinesInward(horizontalLines, verticalLines, wallThickness, mat.Size());
+                    }
+                    
+                    // Build polygon from line intersections
+                    var polygon = BuildRectilinearPolygonFromLines(horizontalLines, verticalLines, mat.Size());
+                    
+                    bitmap.Dispose();
+                    
+                    if (polygon == null || polygon.Count < Constants.MinPerimeterPoints)
+                    {
+                        _logger.LogWarning("Failed to build valid polygon from lines");
+                        return null;
+                    }
+                    
+                    _logger.LogInformation("Successfully built rectilinear polygon with {Count} vertices", polygon.Count);
+                    return polygon;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error in rectilinear perimeter detection");
+                    return null;
+                }
+            });
+        }
+
+        /// <summary>
+        /// Detects horizontal and vertical wall lines using Hough Line Transform.
+        /// Returns full line segments with clustering applied.
+        /// </summary>
+        private (List<Line> HorizontalLines, List<Line> VerticalLines) DetectRectilinearWalls(Mat edges)
+        {
+            // Detect line segments using Hough Line Transform
+            var detectedLines = Cv2.HoughLinesP(
+                edges, 
+                1, 
+                Math.PI / 180, 
+                Constants.HoughLineThreshold,
+                Constants.HoughMinLineLength, 
+                Constants.HoughMaxLineGap);
+            
+            var horizontalLines = new List<Line>();
+            var verticalLines = new List<Line>();
+            
+            // Filter and convert lines to horizontal/vertical only
+            const double angleThreshold = 5.0 * Math.PI / 180.0; // 5 degrees in radians
+            
+            foreach (var line in detectedLines)
+            {
+                var orientation = ClassifyLineOrientation(line, angleThreshold);
+                
+                if (orientation == LineOrientation.Horizontal)
+                {
+                    float avgY = (line.P1.Y + line.P2.Y) / 2.0f;
+                    float minX = Math.Min(line.P1.X, line.P2.X);
+                    float maxX = Math.Max(line.P1.X, line.P2.X);
+                    horizontalLines.Add(new Line(new PointF(minX, avgY), new PointF(maxX, avgY), true));
+                }
+                else if (orientation == LineOrientation.Vertical)
+                {
+                    float avgX = (line.P1.X + line.P2.X) / 2.0f;
+                    float minY = Math.Min(line.P1.Y, line.P2.Y);
+                    float maxY = Math.Max(line.P1.Y, line.P2.Y);
+                    verticalLines.Add(new Line(new PointF(avgX, minY), new PointF(avgX, maxY), false));
+                }
+            }
+            
+            // Merge and cluster parallel lines
+            horizontalLines = MergeParallelLines(horizontalLines, Constants.LineClusteringDistance);
+            verticalLines = MergeParallelLines(verticalLines, Constants.LineClusteringDistance);
+            
+            return (horizontalLines, verticalLines);
+        }
+
+        /// <summary>
+        /// Merges parallel lines that are close together (within tolerance).
+        /// </summary>
+        private List<Line> MergeParallelLines(List<Line> lines, float tolerance)
+        {
+            if (lines.Count == 0)
+                return lines;
+            
+            // Sort by position (Y for horizontal, X for vertical)
+            var sortedLines = lines.OrderBy(l => l.Position).ToList();
+            var mergedLines = new List<Line>();
+            
+            var currentGroup = new List<Line> { sortedLines[0] };
+            
+            for (int i = 1; i < sortedLines.Count; i++)
+            {
+                var line = sortedLines[i];
+                var lastLine = currentGroup[currentGroup.Count - 1];
+                
+                // Check if this line is close enough to be in the same group
+                if (Math.Abs(line.Position - lastLine.Position) <= tolerance)
+                {
+                    currentGroup.Add(line);
+                }
+                else
+                {
+                    // Merge the current group into one line
+                    mergedLines.Add(MergeLineGroup(currentGroup));
+                    currentGroup = new List<Line> { line };
+                }
+            }
+            
+            // Don't forget the last group
+            if (currentGroup.Count > 0)
+            {
+                mergedLines.Add(MergeLineGroup(currentGroup));
+            }
+            
+            return mergedLines;
+        }
+
+        /// <summary>
+        /// Merges a group of parallel lines into a single representative line.
+        /// </summary>
+        private Line MergeLineGroup(List<Line> group)
+        {
+            if (group.Count == 1)
+                return group[0];
+            
+            bool isHorizontal = group[0].IsHorizontal;
+            
+            if (isHorizontal)
+            {
+                // Average Y position, extend from min X to max X
+                float avgY = group.Average(l => l.Position);
+                float minX = group.Min(l => Math.Min(l.Start.X, l.End.X));
+                float maxX = group.Max(l => Math.Max(l.Start.X, l.End.X));
+                return new Line(new PointF(minX, avgY), new PointF(maxX, avgY), true);
+            }
+            else
+            {
+                // Average X position, extend from min Y to max Y
+                float avgX = group.Average(l => l.Position);
+                float minY = group.Min(l => Math.Min(l.Start.Y, l.End.Y));
+                float maxY = group.Max(l => Math.Max(l.Start.Y, l.End.Y));
+                return new Line(new PointF(avgX, minY), new PointF(avgX, maxY), false);
+            }
+        }
+
+        /// <summary>
+        /// Detects wall thickness by finding pairs of parallel lines that are close together.
+        /// </summary>
+        private int DetectWallThicknessFromLines(List<Line> horizontalLines, List<Line> verticalLines)
+        {
+            var distances = new List<int>();
+            
+            // Check horizontal line pairs
+            for (int i = 0; i < horizontalLines.Count - 1; i++)
+            {
+                float distance = Math.Abs(horizontalLines[i + 1].Position - horizontalLines[i].Position);
+                if (distance >= Constants.MinWallThicknessAuto && distance <= Constants.MaxWallThicknessAuto)
+                {
+                    distances.Add((int)distance);
+                }
+            }
+            
+            // Check vertical line pairs
+            for (int i = 0; i < verticalLines.Count - 1; i++)
+            {
+                float distance = Math.Abs(verticalLines[i + 1].Position - verticalLines[i].Position);
+                if (distance >= Constants.MinWallThicknessAuto && distance <= Constants.MaxWallThicknessAuto)
+                {
+                    distances.Add((int)distance);
+                }
+            }
+            
+            if (distances.Count == 0)
+            {
+                _logger.LogWarning("Could not auto-detect wall thickness, using default");
+                return Constants.DefaultWallThicknessPixels;
+            }
+            
+            // Return median distance
+            distances.Sort();
+            int median = distances[distances.Count / 2];
+            
+            _logger.LogDebug("Wall thickness candidates: [{Distances}], median: {Median}", 
+                string.Join(", ", distances.Take(10)), median);
+            
+            return median;
+        }
+
+        /// <summary>
+        /// Offsets lines inward by half the wall thickness to detect inner edges.
+        /// </summary>
+        private (List<Line> HorizontalLines, List<Line> VerticalLines) OffsetLinesInward(
+            List<Line> horizontalLines, 
+            List<Line> verticalLines, 
+            int wallThickness,
+            OpenCvSharp.Size imageSize)
+        {
+            float halfThickness = wallThickness / 2.0f;
+            float centerY = imageSize.Height / 2.0f;
+            float centerX = imageSize.Width / 2.0f;
+            
+            var offsetHorizontal = new List<Line>();
+            var offsetVertical = new List<Line>();
+            
+            // Offset horizontal lines (shift Y coordinate toward center)
+            foreach (var line in horizontalLines)
+            {
+                float newY = line.Position < centerY 
+                    ? line.Position + halfThickness  // Top edge, move down
+                    : line.Position - halfThickness; // Bottom edge, move up
+                
+                offsetHorizontal.Add(new Line(
+                    new PointF(line.Start.X, newY), 
+                    new PointF(line.End.X, newY), 
+                    true));
+            }
+            
+            // Offset vertical lines (shift X coordinate toward center)
+            foreach (var line in verticalLines)
+            {
+                float newX = line.Position < centerX 
+                    ? line.Position + halfThickness  // Left edge, move right
+                    : line.Position - halfThickness; // Right edge, move left
+                
+                offsetVertical.Add(new Line(
+                    new PointF(newX, line.Start.Y), 
+                    new PointF(newX, line.End.Y), 
+                    false));
+            }
+            
+            return (offsetHorizontal, offsetVertical);
+        }
+
+        /// <summary>
+        /// Builds a rectilinear polygon from the intersections of horizontal and vertical lines.
+        /// </summary>
+        private List<PointF>? BuildRectilinearPolygonFromLines(
+            List<Line> horizontalLines, 
+            List<Line> verticalLines,
+            OpenCvSharp.Size imageSize)
+        {
+            // Find all intersections
+            var intersections = new List<PointF>();
+            
+            foreach (var hLine in horizontalLines)
+            {
+                foreach (var vLine in verticalLines)
+                {
+                    var intersection = FindLineIntersection(hLine, vLine);
+                    if (intersection.HasValue)
+                    {
+                        var point = intersection.Value;
+                        // Check if intersection is within image bounds
+                        if (point.X >= 0 && point.X < imageSize.Width && 
+                            point.Y >= 0 && point.Y < imageSize.Height)
+                        {
+                            intersections.Add(point);
+                        }
+                    }
+                }
+            }
+            
+            if (intersections.Count < Constants.MinPerimeterPoints)
+            {
+                _logger.LogWarning("Not enough valid intersections: {Count}", intersections.Count);
+                return null;
+            }
+            
+            // Remove duplicate points
+            intersections = RemoveDuplicatePoints(intersections, Constants.ParallelLineMergeTolerance);
+            
+            // Order vertices to form a closed polygon
+            var polygon = OrderVerticesAsPolygon(intersections);
+            
+            if (polygon == null || polygon.Count < Constants.MinPerimeterPoints)
+            {
+                _logger.LogWarning("Failed to order vertices into valid polygon");
+                return null;
+            }
+            
+            return polygon;
+        }
+
+        /// <summary>
+        /// Finds the intersection point between a horizontal and vertical line.
+        /// </summary>
+        private PointF? FindLineIntersection(Line line1, Line line2)
+        {
+            if (line1.IsHorizontal == line2.IsHorizontal)
+                return null; // Parallel lines don't intersect
+            
+            Line hLine = line1.IsHorizontal ? line1 : line2;
+            Line vLine = line1.IsHorizontal ? line2 : line1;
+            
+            float x = vLine.Position;
+            float y = hLine.Position;
+            
+            // Check if intersection is within line segments
+            bool withinH = x >= Math.Min(hLine.Start.X, hLine.End.X) && x <= Math.Max(hLine.Start.X, hLine.End.X);
+            bool withinV = y >= Math.Min(vLine.Start.Y, vLine.End.Y) && y <= Math.Max(vLine.Start.Y, vLine.End.Y);
+            
+            if (withinH && withinV)
+            {
+                return new PointF(x, y);
+            }
+            
+            return null;
+        }
+
+        /// <summary>
+        /// Removes duplicate points within tolerance distance.
+        /// </summary>
+        private List<PointF> RemoveDuplicatePoints(List<PointF> points, float tolerance)
+        {
+            var unique = new List<PointF>();
+            
+            foreach (var point in points)
+            {
+                bool isDuplicate = false;
+                foreach (var existing in unique)
+                {
+                    float distance = (float)Math.Sqrt(
+                        Math.Pow(point.X - existing.X, 2) + 
+                        Math.Pow(point.Y - existing.Y, 2));
+                    
+                    if (distance < tolerance)
+                    {
+                        isDuplicate = true;
+                        break;
+                    }
+                }
+                
+                if (!isDuplicate)
+                {
+                    unique.Add(point);
+                }
+            }
+            
+            return unique;
+        }
+
+        /// <summary>
+        /// Orders vertices to form a closed polygon using convex hull approach.
+        /// For rectilinear polygons, we use the boundary of all intersection points.
+        /// </summary>
+        private List<PointF>? OrderVerticesAsPolygon(List<PointF> points)
+        {
+            if (points.Count < 3)
+                return null;
+            
+            try
+            {
+                // Convert to OpenCV format
+                var cvPoints = points.Select(p => new OpenCvSharp.Point2f(p.X, p.Y)).ToArray();
+                
+                // Use convex hull to order points
+                var hull = Cv2.ConvexHullIndices(cvPoints);
+                
+                var orderedPoints = new List<PointF>();
+                foreach (var index in hull)
+                {
+                    orderedPoints.Add(points[index]);
+                }
+                
+                return orderedPoints;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error ordering vertices");
+                return null;
+            }
+        }
+
+        #endregion
+
         /// <summary>
         /// Enumeration of line orientations for classification.
         /// </summary>
@@ -750,6 +1181,25 @@ namespace FloorTrace.Services
             Horizontal,
             Vertical,
             Diagonal
+        }
+
+        /// <summary>
+        /// Represents a line segment for rectilinear detection.
+        /// </summary>
+        private class Line
+        {
+            public PointF Start { get; set; }
+            public PointF End { get; set; }
+            public bool IsHorizontal { get; set; }
+            public float Position { get; set; } // Y for horizontal, X for vertical
+            
+            public Line(PointF start, PointF end, bool isHorizontal)
+            {
+                Start = start;
+                End = end;
+                IsHorizontal = isHorizontal;
+                Position = isHorizontal ? start.Y : start.X;
+            }
         }
     }
 }

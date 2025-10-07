@@ -10,6 +10,7 @@
         <Rectangle Stroke="{DynamicResource Primary}" 
                    StrokeThickness="2" 
                    Fill="{DynamicResource Primary}" 
+                   Opacity="0.3"
                    RadiusX="8" 
                    RadiusY="8">
             <Rectangle.Effect>

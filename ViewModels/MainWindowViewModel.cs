@@ -60,11 +60,6 @@ namespace FloorTrace.ViewModels
         [ObservableProperty]
         private bool useInnerWallEdge;
         
-        /// <summary>
-        /// Gets or sets whether the application is in dark mode.
-        /// </summary>
-        [ObservableProperty]
-        private bool isDarkMode = true; // Default to dark mode
         
         partial void OnUseInnerWallEdgeChanged(bool value)
         {
@@ -72,14 +67,6 @@ namespace FloorTrace.ViewModels
             _ = OnWallEdgePreferenceChangedAsync();
         }
         
-        partial void OnIsDarkModeChanged(bool value)
-        {
-            // Apply the theme change immediately
-            App.ApplyTheme(value);
-            
-            // Save the preference
-            _ = SaveThemePreferenceAsync();
-        }
         
         /// <summary>
         /// Gets whether sketch saving is enabled based on configuration.
@@ -123,7 +110,6 @@ namespace FloorTrace.ViewModels
             IsSavingEnabled = _configuration.GetValue<bool>("ApplicationSettings:IsSavingEnabled");
             MaxSavedSketches = _configuration.GetValue<int>("ApplicationSettings:MaxSavedSketches");
             UseInnerWallEdge = _configuration.GetValue<bool>("ApplicationSettings:UseInnerWallEdge", true);
-            IsDarkMode = _configuration.GetValue<bool>("ApplicationSettings:IsDarkMode", true);
             
             CurrentSketch = new Sketch();
             PriorSketches = _priorSketches;
@@ -520,6 +506,13 @@ namespace FloorTrace.ViewModels
                 return false;
             }
 
+            // Check if room dimensions exist - area calculation should not update without room dimensions
+            if (CurrentSketch.SelectedRoomForScale == null || 
+                (CurrentSketch.SelectedRoomForScale.WidthFeet <= 0 || CurrentSketch.SelectedRoomForScale.HeightFeet <= 0))
+            {
+                return false;
+            }
+
             return true;
         }
 
@@ -721,11 +714,6 @@ namespace FloorTrace.ViewModels
             IsPriorSketchesVisible = !IsPriorSketchesVisible;
         }
         
-        [RelayCommand]
-        public void ToggleTheme()
-        {
-            IsDarkMode = !IsDarkMode;
-        }
         
         // Properties
         /// <summary>
@@ -800,21 +788,5 @@ namespace FloorTrace.ViewModels
             }
         }
         
-        private async Task SaveThemePreferenceAsync()
-        {
-            try
-            {
-                // Note: In a real application, you might want to save this to a separate settings file
-                // or user preferences. For now, we'll just log it.
-                _logger.LogInformation("Theme preference changed to: {Theme}", IsDarkMode ? "Dark" : "Light");
-                
-                // If you want to persist this setting, you could add it to appsettings.json
-                // or create a separate user settings file
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to save theme preference");
-            }
-        }
     }
 }

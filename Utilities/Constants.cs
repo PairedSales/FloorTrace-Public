@@ -28,6 +28,15 @@ namespace FloorTrace.Utilities
         public const int MaxWallThicknessPixels = 50;
         public const int MinWallThicknessPixels = 2;
 
+        // Rectilinear detection
+        public const int HoughLineThreshold = 80;           // Minimum votes for line detection
+        public const int HoughMinLineLength = 30;           // Minimum line length in pixels
+        public const int HoughMaxLineGap = 15;              // Maximum gap between line segments
+        public const float ParallelLineMergeTolerance = 5.0f; // Pixels
+        public const float LineClusteringDistance = 10.0f;   // Pixels for grouping parallel lines
+        public const int MinWallThicknessAuto = 3;          // Minimum auto-detected wall thickness
+        public const int MaxWallThicknessAuto = 60;         // Maximum auto-detected wall thickness
+
         // Storage
         public const int MaxRecentSketches = 25;
         public const int RetainedLogFileDays = 7;

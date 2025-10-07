@@ -373,6 +373,9 @@ namespace FloorTrace
                 VerticalWallLines = vm.CurrentSketch.VerticalWallLines ?? new List<float>()
             };
 
+            // Ensure room overlay is always above the perimeter overlay
+            System.Windows.Controls.Panel.SetZIndex(overlay, 1000);
+
             overlay.OverlayChanged += (s, e) =>
             {
                 // Sync position and size back into model
@@ -457,6 +460,8 @@ namespace FloorTrace
             _perimeterOverlay.Height = FloorPlanImage.Source?.Height ?? 0;
             
             OverlayCanvas.Children.Add(_perimeterOverlay);
+            // Push perimeter behind room overlay
+            System.Windows.Controls.Panel.SetZIndex(_perimeterOverlay, 0);
         }
 
         private async void SketchItem_Click(object sender, MouseButtonEventArgs e)

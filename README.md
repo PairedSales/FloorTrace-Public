@@ -49,7 +49,6 @@ See `ExampleFloorplan.png` for a sample floorplan sketch.
 - 🎯 **Zoom-to-Point** - Mouse wheel zoom that centers on cursor position
 - 📐 **Wall Line Detection** - Automatic detection of horizontal and vertical wall lines for UI snapping
 - 🔄 **Real-time Updates** - Automatic area recalculation when perimeter or scale changes
-- 🎨 **Theme Support** - Light and dark mode themes
 - 📊 **Detailed Measurements** - Side lengths, area, and scale information
 - 🖱️ **Interactive Editing** - Drag and drop perimeter points, double-click to add, right-click to remove
 
