@@ -12,6 +12,9 @@
     <AssemblyDescription>Floor plan area calculation application</AssemblyDescription>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
+    <Version>1.0.0-alpha</Version>
+    <Company>FloorTrace</Company>
+    <Product>FloorTrace</Product>
   </PropertyGroup>
 
   <ItemGroup>
