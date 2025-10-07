@@ -1,0 +1,28 @@
+# Build outputs
+**/bin/**
+**/obj/**
+
+# Logs
+Logs/
+**/Logs/**
+**/*.log
+
+# Test artifacts
+TestResults/
+**/TestResults/**
+
+# IDE settings
+.vs/
+.vscode/
+*.user
+*.suo
+
+# Packages
+*.nupkg
+*.snupkg
+
+# OS files
+Thumbs.db
+.DS_Store
+/bin/
+/obj/
