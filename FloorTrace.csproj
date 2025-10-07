@@ -15,6 +15,8 @@
     <Version>1.0.0-alpha</Version>
     <Company>FloorTrace</Company>
     <Product>FloorTrace</Product>
+    <!-- Allow forward compatibility with newer .NET 8.x versions -->
+    <RollForward>LatestMinor</RollForward>
   </PropertyGroup>
 
   <ItemGroup>
@@ -26,7 +28,7 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
-    <PackageReference Include="System.Text.Json" Version="8.0.4" />
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
     <PackageReference Include="SkiaSharp" Version="2.88.8" />
     <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="2.88.6" />
     <PackageReference Include="OpenCvSharp4" Version="4.10.0.20240616" />

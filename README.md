@@ -70,12 +70,12 @@ See `ExampleFloorplan.png` for a sample floorplan sketch.
 ## Installation
 
 ### Option 1: Download Release
-1. Download the latest release from the [Releases page](https://github.com/your-repo/FloorTrace/releases)
+1. Download the latest release from the [Releases page](https://github.com/PairedSales/FloorTrace-Public/releases)
 2. Extract the ZIP file to your desired location
 3. Run `FloorTrace.exe`
 
 ### Option 2: Build from Source
-1. Clone the repository: `git clone https://github.com/your-repo/FloorTrace.git`
+1. Clone the repository: `git clone https://github.com/PairedSales/FloorTrace-Public.git`
 2. Install .NET 8.0 SDK
 3. Open `FloorTrace.sln` in Visual Studio 2022 or later
 4. Build and run the solution
@@ -272,8 +272,8 @@ FloorTrace follows the **MVVM (Model-View-ViewModel)** pattern with dependency i
 
 ### Building the Project
 ```bash
-git clone https://github.com/your-repo/FloorTrace.git
-cd FloorTrace
+git clone https://github.com/PairedSales/FloorTrace-Public.git
+cd FloorTrace-Public
 dotnet restore
 dotnet build
 dotnet run

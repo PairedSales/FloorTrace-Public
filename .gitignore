@@ -10,6 +10,10 @@ Logs/
 # Test artifacts
 TestResults/
 **/TestResults/**
+test-results-summary.txt
+
+# Distribution packages
+*.zip
 
 # IDE settings
 .vs/

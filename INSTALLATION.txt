@@ -1,0 +1,92 @@
+=====================================================
+FloorTrace v1.0.0-alpha - Installation Instructions
+=====================================================
+
+SYSTEM REQUIREMENTS
+-------------------
+- Windows 10/11 (64-bit)
+- .NET 8.0 Desktop Runtime (see below)
+- 4GB RAM minimum (8GB recommended)
+- 100MB free disk space
+
+INSTALLATION STEPS
+------------------
+
+Step 1: Install .NET 8.0 Desktop Runtime (if not already installed)
+   
+   Download from: https://dotnet.microsoft.com/download/dotnet/8.0/runtime
+   
+   Direct link to installer:
+   https://dotnet.microsoft.com/en-us/download/dotnet/thank-you/runtime-desktop-8.0.11-windows-x64-installer
+   
+   This is a one-time installation (~50 MB download).
+   If you already have .NET 8.0 or later installed, skip this step.
+
+Step 2: Extract FloorTrace
+   
+   - Right-click the ZIP file
+   - Select "Extract All..."
+   - Choose a location (e.g., C:\Program Files\FloorTrace or your Desktop)
+   - Click "Extract"
+
+Step 3: Run FloorTrace
+   
+   - Navigate to the extracted folder
+   - Double-click FloorTrace.exe
+   - That's it! The application should start.
+
+QUICK START GUIDE
+-----------------
+
+1. Load an image:
+   - Press Ctrl+O or click "Load Image"
+   - Or paste an image with Ctrl+V
+
+2. Detect room:
+   - Click "Detect Room" to find dimensions automatically
+   - Adjust the overlay if needed
+
+3. Trace perimeter:
+   - Click "Trace Perimeter" to outline the floor plan
+   - Drag points to adjust if needed
+   - Double-click to add points
+   - Right-click to remove points
+
+4. Calculate area:
+   - Click "Calculate Area" to get the square footage
+   - Results display automatically
+
+INCLUDED FILES
+--------------
+- FloorTrace.exe - Main application
+- appsettings.json - Configuration file
+- ExampleFloorplan.png - Sample floor plan for testing
+- README.md - Complete documentation
+- LICENSE - MIT License
+
+TROUBLESHOOTING
+---------------
+
+"This app requires .NET 8.0 to run"
+   → Install .NET 8.0 Desktop Runtime (see Step 1 above)
+
+"Windows protected your PC" message
+   → Click "More info" then "Run anyway"
+   → This is normal for unsigned applications
+
+Image won't load
+   → Ensure the image is JPG, PNG, BMP, TIF, or WebP format
+
+For more help:
+- Check README.md for detailed documentation
+- Report issues: https://github.com/PairedSales/FloorTrace-Public/issues
+
+=====================================================
+
+Version: 1.0.0-alpha
+Release Date: October 2025
+License: MIT License
+Website: https://github.com/PairedSales/FloorTrace-Public
+
+=====================================================
+
