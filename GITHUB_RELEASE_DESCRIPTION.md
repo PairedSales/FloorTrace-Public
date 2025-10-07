@@ -1,5 +1,7 @@
 # FloorTrace v1.0.0-alpha - Initial Public Release
 
+![FloorTrace Demo](Assets/FloorTrace.gif)
+
 ## 🎉 First Alpha Release
 
 This is the first public alpha release of FloorTrace - a Windows application that automatically calculates the square footage of hand-drawn floor plan sketches using advanced computer vision algorithms.
