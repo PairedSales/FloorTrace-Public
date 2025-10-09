@@ -446,6 +446,7 @@ namespace FloorTrace
         private void RenderManualHighlights(MainWindowViewModel vm)
         {
             ManualHighlightsCanvas.Children.Clear();
+            ManualHighlightsCanvas.IsHitTestVisible = false;
             if (!vm.IsManualModeActive || vm.ManualModeLabels == null || vm.ManualModeLabels.Count == 0)
                 return;
 
@@ -466,18 +467,23 @@ namespace FloorTrace
                 Canvas.SetLeft(border, label.LabelBounds.Left);
                 Canvas.SetTop(border, label.LabelBounds.Top);
 
-                border.MouseLeftButtonUp += async (s, e) =>
+                border.MouseLeftButtonDown += async (s, e) =>
                 {
+                    e.Handled = true;
                     if (border.Tag is FloorTrace.Models.OcrDimensionLabel l)
                     {
                         // Clear highlights immediately
                         ManualHighlightsCanvas.Children.Clear();
+                        ManualHighlightsCanvas.IsHitTestVisible = false;
                         await _viewModel.SelectManualLabelCommand.ExecuteAsync(l);
                     }
                 };
 
                 ManualHighlightsCanvas.Children.Add(border);
             }
+
+            // Enable hit testing only when active and highlights exist
+            ManualHighlightsCanvas.IsHitTestVisible = true;
         }
 
         private async void SketchItem_Click(object sender, MouseButtonEventArgs e)

@@ -29,9 +29,9 @@
                 Effect="{StaticResource Elevation2}">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
                 
                 <!-- Left side buttons -->
@@ -48,12 +48,6 @@
                     <Button Content="Trace Perimeter" Style="{StaticResource TextButton}" Command="{Binding TracePerimeterCommand}"/>
                     <Rectangle Width="1" Height="24" Fill="{StaticResource OutlineVariant}" Margin="8,0"/>
                     <Button Content="Manual Mode" Style="{StaticResource TextButton}" Command="{Binding ActivateManualModeCommand}"/>
-                    <CheckBox Content="Use Inner Wall Edge" 
-                              Style="{StaticResource MaterialCheckBox}"
-                              IsChecked="{Binding UseInnerWallEdge}" 
-                              VerticalAlignment="Center" 
-                              Margin="16,0,0,0"
-                              ToolTip="When enabled, the perimeter will trace along the inner edge of exterior walls, excluding wall thickness from the area calculation."/>
                 </StackPanel>
                 
                 <!-- Right side buttons -->
@@ -115,7 +109,7 @@
                                            Source="{Binding CurrentImage}" 
                                            Stretch="None"/>
                                     <Canvas x:Name="OverlayCanvas" Background="Transparent"/>
-                                    <Canvas x:Name="ManualHighlightsCanvas" Background="Transparent"/>
+                                    <Canvas x:Name="ManualHighlightsCanvas" IsHitTestVisible="False"/>
                                 </Grid>
                             </Grid>
                         </ScrollViewer>

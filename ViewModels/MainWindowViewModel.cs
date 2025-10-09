@@ -222,6 +222,7 @@ namespace FloorTrace.ViewModels
 
                 CurrentSketch.SelectedRoomForScale = room;
                 OnPropertyChanged(nameof(CurrentSketch.SelectedRoomForScale));
+                OnPropertyChanged(nameof(ScaleText));
 
                 // Create perimeter 800x800 centered at label
                 var perX = Math.Max(0, Math.Min(imgW - perimSize, cx - perimSize / 2.0));
@@ -242,8 +243,10 @@ namespace FloorTrace.ViewModels
                 OnPropertyChanged(nameof(CurrentSketch.PerimeterPoints));
                 OnPropertyChanged(nameof(CurrentSketch.CurrentState));
 
-                // Recalculate scale then area
+                // Recalculate scale then area; also ensure UI updates for side lengths/area
                 await CalculateScaleAsync();
+                OnPropertyChanged(nameof(SideLengthsText));
+                OnPropertyChanged(nameof(AreaText));
             }
             catch (Exception ex)
             {
