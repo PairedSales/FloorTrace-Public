@@ -46,6 +46,8 @@
                     <Button Content="Detect Room" Style="{StaticResource TextButton}" Command="{Binding DetectRoomCommand}"/>
                     <Rectangle Width="1" Height="24" Fill="{StaticResource OutlineVariant}" Margin="8,0"/>
                     <Button Content="Trace Perimeter" Style="{StaticResource TextButton}" Command="{Binding TracePerimeterCommand}"/>
+                    <Rectangle Width="1" Height="24" Fill="{StaticResource OutlineVariant}" Margin="8,0"/>
+                    <Button Content="Manual Mode" Style="{StaticResource TextButton}" Command="{Binding ActivateManualModeCommand}"/>
                     <CheckBox Content="Use Inner Wall Edge" 
                               Style="{StaticResource MaterialCheckBox}"
                               IsChecked="{Binding UseInnerWallEdge}" 
@@ -113,6 +115,7 @@
                                            Source="{Binding CurrentImage}" 
                                            Stretch="None"/>
                                     <Canvas x:Name="OverlayCanvas" Background="Transparent"/>
+                                    <Canvas x:Name="ManualHighlightsCanvas" Background="Transparent"/>
                                 </Grid>
                             </Grid>
                         </ScrollViewer>

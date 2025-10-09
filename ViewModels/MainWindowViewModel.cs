@@ -14,6 +14,9 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
 using System.Diagnostics;
 using FloorTrace.Utilities;
+using System.Collections.Generic;
+using System.Collections.Specialized;
+using System.Windows;
 
 namespace FloorTrace.ViewModels
 {
@@ -31,6 +34,12 @@ namespace FloorTrace.ViewModels
         private readonly IStorageService _storageService;
         private readonly IDialogService _dialogService;
         private readonly IConfiguration _configuration;
+        
+        // Manual mode state
+        [ObservableProperty]
+        private bool isManualModeActive;
+
+        public ObservableCollection<OcrDimensionLabel> ManualModeLabels { get; } = new();
         
         /// <summary>
         /// Gets or sets the current sketch being analyzed.
@@ -117,6 +126,131 @@ namespace FloorTrace.ViewModels
         }
         
         // Commands
+        [RelayCommand]
+        private async Task ActivateManualModeAsync()
+        {
+            if (CurrentImage == null)
+            {
+                await _dialogService.ShowWarningAsync("Please load an image first before using Manual Mode.", "No Image Loaded");
+                return;
+            }
+
+            // If overlays exist, prompt to clear
+            bool hasRoomOverlay = CurrentSketch?.SelectedRoomForScale != null;
+            bool hasPerimeter = CurrentSketch?.PerimeterPoints?.Count >= 3;
+            if (hasRoomOverlay || hasPerimeter)
+            {
+                var confirm = await _dialogService.ShowConfirmationAsync("Manual Mode will clear existing overlays. Continue?", "Confirm Manual Mode");
+                if (!confirm)
+                    return;
+
+                // Clear overlays
+                if (CurrentSketch != null)
+                {
+                    CurrentSketch.SelectedRoomForScale = null;
+                    CurrentSketch.PerimeterPoints.Clear();
+                    OnPropertyChanged(nameof(CurrentSketch.SelectedRoomForScale));
+                    OnPropertyChanged(nameof(CurrentSketch.PerimeterPoints));
+                }
+            }
+
+            try
+            {
+                // Ensure wall lines are available for snapping later
+                if (CurrentSketch != null && (CurrentSketch.HorizontalWallLines.Count == 0 || CurrentSketch.VerticalWallLines.Count == 0))
+                {
+                    var (h, v) = await _imageProcessingService.DetectWallLinesAsync(CurrentImage);
+                    CurrentSketch.HorizontalWallLines = h;
+                    CurrentSketch.VerticalWallLines = v;
+                }
+
+                var labels = await _scaleCalculationService.DetectDimensionLabelsAsync(CurrentImage, horizontalOnly: true);
+                ManualModeLabels.Clear();
+                foreach (var l in labels)
+                    ManualModeLabels.Add(l);
+
+                if (ManualModeLabels.Count == 0)
+                {
+                    await _dialogService.ShowInfoAsync("No horizontal dimension labels found. Try a clearer image or zoom.", "No Labels Found");
+                    IsManualModeActive = false;
+                    return;
+                }
+
+                IsManualModeActive = true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error activating Manual Mode");
+                await _dialogService.ShowErrorAsync("Failed to run OCR for Manual Mode.", "Manual Mode Error");
+            }
+        }
+
+        [RelayCommand]
+        private async Task SelectManualLabelAsync(OcrDimensionLabel label)
+        {
+            try
+            {
+                IsManualModeActive = false;
+                ManualModeLabels.Clear();
+
+                if (CurrentSketch == null || CurrentImage == null)
+                    return;
+
+                // Create room overlay 400x400 centered at label
+                int roomSize = Constants.ManualRoomOverlaySize;
+                int perimSize = Constants.ManualPerimeterOverlaySize;
+
+                var cx = label.LabelBounds.Left + label.LabelBounds.Width / 2f;
+                var cy = label.LabelBounds.Top + label.LabelBounds.Height / 2f;
+
+                // Clamp within image bounds
+                double imgW = CurrentImage.PixelWidth;
+                double imgH = CurrentImage.PixelHeight;
+
+                var roomX = Math.Max(0, Math.Min(imgW - roomSize, cx - roomSize / 2.0));
+                var roomY = Math.Max(0, Math.Min(imgH - roomSize, cy - roomSize / 2.0));
+
+                var room = new Room
+                {
+                    Name = "Manual Room",
+                    Dimensions = label.Text,
+                    WidthFeet = label.WidthFeet,
+                    HeightFeet = label.HeightFeet,
+                    Bounds = new System.Drawing.RectangleF((float)roomX, (float)roomY, roomSize, roomSize),
+                    IsSelected = true
+                };
+
+                CurrentSketch.SelectedRoomForScale = room;
+                OnPropertyChanged(nameof(CurrentSketch.SelectedRoomForScale));
+
+                // Create perimeter 800x800 centered at label
+                var perX = Math.Max(0, Math.Min(imgW - perimSize, cx - perimSize / 2.0));
+                var perY = Math.Max(0, Math.Min(imgH - perimSize, cy - perimSize / 2.0));
+
+                var left = (float)perX; var top = (float)perY;
+                var right = (float)Math.Min(imgW, perX + perimSize);
+                var bottom = (float)Math.Min(imgH, perY + perimSize);
+
+                CurrentSketch.PerimeterPoints = new List<System.Drawing.PointF>
+                {
+                    new System.Drawing.PointF(left, top),
+                    new System.Drawing.PointF(right, top),
+                    new System.Drawing.PointF(right, bottom),
+                    new System.Drawing.PointF(left, bottom)
+                };
+                CurrentSketch.CurrentState = WorkflowState.PerimeterTraced;
+                OnPropertyChanged(nameof(CurrentSketch.PerimeterPoints));
+                OnPropertyChanged(nameof(CurrentSketch.CurrentState));
+
+                // Recalculate scale then area
+                await CalculateScaleAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error selecting manual label");
+                await _dialogService.ShowErrorAsync("Failed to apply manual selection.", "Manual Mode Error");
+            }
+        }
         /// <summary>
         /// Command to load an image from a file dialog.
         /// </summary>

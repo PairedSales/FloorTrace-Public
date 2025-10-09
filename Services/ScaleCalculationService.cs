@@ -83,6 +83,37 @@ namespace FloorTrace.Services
             return SelectFirstDetectedRoom(roomCandidates);
         }
 
+        public async Task<List<OcrDimensionLabel>> DetectDimensionLabelsAsync(BitmapImage image, bool horizontalOnly = true)
+        {
+            var results = new List<OcrDimensionLabel>();
+            if (image == null) return results;
+
+            var ocr = await PerformOcrOnImage(image).ConfigureAwait(false);
+
+            foreach (var line in ocr.Result.Lines)
+            {
+                var text = line.Text?.Trim() ?? string.Empty;
+                if (!Utilities.DimensionParser.IsDimensionString(text)) continue;
+                if (!Utilities.DimensionParser.TryParseDimensionsFeet(text, out var wFeet, out var hFeet)) continue;
+
+                var textRect = line.Words.Select(w => w.BoundingRect).Aggregate((a, b) => Union(a, b));
+                float width = (float)(textRect.Right - textRect.Left);
+                float height = (float)(textRect.Bottom - textRect.Top);
+                if (horizontalOnly && !(width >= height * 1.3f))
+                    continue;
+
+                results.Add(new Models.OcrDimensionLabel
+                {
+                    Text = text,
+                    WidthFeet = wFeet,
+                    HeightFeet = hFeet,
+                    LabelBounds = new System.Drawing.RectangleF((float)textRect.Left, (float)textRect.Top, width, height)
+                });
+            }
+
+            return results;
+        }
+
         /// <summary>
         /// Performs OCR on the image to extract text.
         /// </summary>
@@ -169,14 +200,15 @@ namespace FloorTrace.Services
             {
                 if (room.WidthFeet <= 0 || room.HeightFeet <= 0)
                     throw new ArgumentException("Room dimensions must be positive");
-                
-                var roomWidthPixels = room.Bounds.Width;
-                var roomHeightPixels = room.Bounds.Height;
-                
-                var scaleFromWidth = roomWidthPixels / room.WidthFeet;
-                var scaleFromHeight = roomHeightPixels / room.HeightFeet;
-                
-                return (scaleFromWidth + scaleFromHeight) / 2.0;
+
+                // Map shortest overlay side to smallest OCR measurement to be orientation-agnostic
+                var pixelSides = new[] { room.Bounds.Width, room.Bounds.Height }.OrderBy(v => v).ToArray();
+                var feetSides = new[] { room.WidthFeet, room.HeightFeet }.OrderBy(v => v).ToArray();
+
+                var scaleShort = pixelSides[0] / feetSides[0];
+                var scaleLong = pixelSides[1] / feetSides[1];
+
+                return (scaleShort + scaleLong) / 2.0;
             });
         }
         
@@ -388,8 +420,8 @@ namespace FloorTrace.Services
                             if (!IsLabelInsideBounds(left, right, top, bottom, textRect))
                                 continue;
 
-                            var score = ScoreBoundingBox(left, right, top, bottom, textRect, targetAspect, hasAspectRatio);
-                            var aspectOk = hasAspectRatio && IsAspectRatioValid(width, height, targetAspect, aspectTolerance);
+                            var score = ScoreBoundingBox(left, right, top, bottom, textRect, targetAspect, hasAspectRatio, widthFeet, heightFeet);
+                            var aspectOk = hasAspectRatio && IsAspectRatioValid(width, height, targetAspect, aspectTolerance, widthFeet, heightFeet);
 
                             if (hasAspectRatio)
                             {
@@ -440,7 +472,8 @@ namespace FloorTrace.Services
         /// </summary>
         private static double ScoreBoundingBox(
             double left, double right, double top, double bottom,
-            Windows.Foundation.Rect textRect, double targetAspect, bool hasAspectRatio)
+            Windows.Foundation.Rect textRect, double targetAspect, bool hasAspectRatio,
+            double widthFeet, double heightFeet)
         {
             double closenessScore = (textRect.Left - left) + (right - textRect.Right) + (textRect.Top - top) + (bottom - textRect.Bottom);
             double score = closenessScore;
@@ -449,8 +482,7 @@ namespace FloorTrace.Services
             {
                 float width = (float)(right - left);
                 float height = (float)(bottom - top);
-                var pixelAspect = width / height;
-                var relativeError = Math.Abs(pixelAspect - targetAspect) / targetAspect;
+                var relativeError = MinRelativeAspectError(width, height, widthFeet, heightFeet);
                 score += relativeError * 1000.0;
             }
 
@@ -460,11 +492,20 @@ namespace FloorTrace.Services
         /// <summary>
         /// Checks if the aspect ratio is within acceptable tolerance.
         /// </summary>
-        private static bool IsAspectRatioValid(float width, float height, double targetAspect, double tolerance)
+        private static bool IsAspectRatioValid(float width, float height, double targetAspect, double tolerance, double widthFeet, double heightFeet)
         {
-            var pixelAspect = width / height;
-            var relativeError = Math.Abs(pixelAspect - targetAspect) / targetAspect;
+            var relativeError = MinRelativeAspectError(width, height, widthFeet, heightFeet);
             return relativeError <= tolerance;
+        }
+
+        private static double MinRelativeAspectError(float pixelW, float pixelH, double ftW, double ftH)
+        {
+            var pixelAspect = pixelW / pixelH;
+            var a1 = ftW / ftH;
+            var a2 = ftH / ftW;
+            var e1 = Math.Abs(pixelAspect - a1) / a1;
+            var e2 = Math.Abs(pixelAspect - a2) / a2;
+            return Math.Min(e1, e2);
         }
     }
 }

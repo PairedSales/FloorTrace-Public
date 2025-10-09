@@ -46,5 +46,13 @@ namespace FloorTrace.Services
         /// <returns>A Task that represents the asynchronous operation and returns the updated room.</returns>
         /// <exception cref="ArgumentNullException">Thrown when room or image is null.</exception>
         Task<Room> UpdateRoomOverlayAsync(Room room, BitmapImage image);
+
+        /// <summary>
+        /// Detects OCR dimension labels in the image. When horizontalOnly is true, returns only left-to-right labels.
+        /// </summary>
+        /// <param name="image">The image to analyze.</param>
+        /// <param name="horizontalOnly">If true, filters to labels whose bounding boxes are wider than tall.</param>
+        /// <returns>List of OCR dimension labels with bounds.</returns>
+        Task<List<OcrDimensionLabel>> DetectDimensionLabelsAsync(BitmapImage image, bool horizontalOnly = true);
     }
 }

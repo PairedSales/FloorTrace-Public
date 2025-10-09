@@ -11,6 +11,7 @@ using FloorTrace.ViewModels;
 using FloorTrace.Services;
 using FloorTrace.Models;
 using Microsoft.Extensions.DependencyInjection;
+using System.Linq;
 
 namespace FloorTrace
 {
@@ -51,6 +52,7 @@ namespace FloorTrace
             HandleSketchPropertyChanged(vm, args);
             HandleRoomPropertyChanged(vm, args);
             HandlePerimeterPropertyChanged(vm, args);
+            HandleManualModePropertyChanged(vm, args);
         }
 
         /// <summary>
@@ -77,6 +79,7 @@ namespace FloorTrace
             {
                 OverlayCanvas.Children.Clear();
                 _perimeterOverlay = null;
+                ManualHighlightsCanvas.Children.Clear();
             }
         }
 
@@ -410,6 +413,11 @@ namespace FloorTrace
             _perimeterOverlay = new Controls.PerimeterOverlayControl();
             _perimeterOverlay.SetPoints(points);
             
+            // Set wall lines for snapping
+            var horizontalLines = vm?.CurrentSketch?.HorizontalWallLines ?? new System.Collections.Generic.List<float>();
+            var verticalLines = vm?.CurrentSketch?.VerticalWallLines ?? new System.Collections.Generic.List<float>();
+            _perimeterOverlay.SetWallLines(horizontalLines, verticalLines);
+            
             _perimeterOverlay.IsEditable = true;
             
             _perimeterOverlay.PerimeterChanged += async (s, e) =>
@@ -425,6 +433,51 @@ namespace FloorTrace
             OverlayCanvas.Children.Add(_perimeterOverlay);
             // Push perimeter behind room overlay
             System.Windows.Controls.Panel.SetZIndex(_perimeterOverlay, 0);
+        }
+
+        private void HandleManualModePropertyChanged(MainWindowViewModel vm, System.ComponentModel.PropertyChangedEventArgs args)
+        {
+            if (args.PropertyName == nameof(vm.IsManualModeActive) || args.PropertyName == nameof(vm.ManualModeLabels))
+            {
+                RenderManualHighlights(vm);
+            }
+        }
+
+        private void RenderManualHighlights(MainWindowViewModel vm)
+        {
+            ManualHighlightsCanvas.Children.Clear();
+            if (!vm.IsManualModeActive || vm.ManualModeLabels == null || vm.ManualModeLabels.Count == 0)
+                return;
+
+            foreach (var label in vm.ManualModeLabels)
+            {
+                var border = new System.Windows.Controls.Border
+                {
+                    Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0x66, 0x21, 0x96, 0xF3)), // #662196F3
+                    BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x21, 0x96, 0xF3)),
+                    BorderThickness = new Thickness(2),
+                    CornerRadius = new CornerRadius(6),
+                    Width = label.LabelBounds.Width,
+                    Height = label.LabelBounds.Height,
+                    Tag = label,
+                    Cursor = System.Windows.Input.Cursors.Hand
+                };
+
+                Canvas.SetLeft(border, label.LabelBounds.Left);
+                Canvas.SetTop(border, label.LabelBounds.Top);
+
+                border.MouseLeftButtonUp += async (s, e) =>
+                {
+                    if (border.Tag is FloorTrace.Models.OcrDimensionLabel l)
+                    {
+                        // Clear highlights immediately
+                        ManualHighlightsCanvas.Children.Clear();
+                        await _viewModel.SelectManualLabelCommand.ExecuteAsync(l);
+                    }
+                };
+
+                ManualHighlightsCanvas.Children.Add(border);
+            }
         }
 
         private async void SketchItem_Click(object sender, MouseButtonEventArgs e)

@@ -51,8 +51,16 @@ namespace FloorTrace.Utilities
         // UI
         public const double MinControlWidth = 20;
         public const double MinControlHeight = 20;
-        public const double VertexHandleSize = 12;
-        public const double VertexHandleOffset = 6;
+        public const double VertexHandleSize = 18;
+        public const double VertexHandleOffset = 9;
+
+        // Manual mode overlay sizes
+        public const int ManualRoomOverlaySize = 400;  // pixels
+        public const int ManualPerimeterOverlaySize = 800; // pixels
+
+        // Snapping
+        public const float SnapToIntersectionDistance = 10f; // Distance in pixels to snap to intersection points
+        public const float SecondaryAlignmentDistance = 10f; // Distance in pixels to align nearby vertices
 
         // File paths
         public const string AppDataFolderName = "FloorTrace";

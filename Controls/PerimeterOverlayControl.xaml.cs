@@ -19,6 +19,8 @@ namespace FloorTrace.Controls
         private Ellipse? _draggedVertex = null;
         private int _draggedVertexIndex = -1;
         private bool _isEditable = true;
+        private List<PointF> _intersectionPoints = new List<PointF>();
+        private PointF? _visualSnapPosition = null; // Stores the visual snap position during drag
 
         public event EventHandler? PerimeterChanged;
 
@@ -47,6 +49,11 @@ namespace FloorTrace.Controls
         public List<PointF> GetPoints()
         {
             return new List<PointF>(_points);
+        }
+
+        public void SetWallLines(List<float> horizontalLines, List<float> verticalLines)
+        {
+            _intersectionPoints = SnappingHelper.FindAllIntersectionPoints(horizontalLines, verticalLines);
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
@@ -159,21 +166,30 @@ namespace FloorTrace.Controls
             if (_draggedVertex != null && e.LeftButton == MouseButtonState.Pressed)
             {
                 var position = e.GetPosition(PerimeterCanvas);
+                var currentPoint = new PointF((float)position.X, (float)position.Y);
                 
-                // Update the point
-                _points[_draggedVertexIndex] = new PointF((float)position.X, (float)position.Y);
+                // Apply snapping to intersection points for visual feedback
+                var snappedPoint = SnappingHelper.FindNearestIntersection(
+                    currentPoint, 
+                    _intersectionPoints, 
+                    Constants.SnapToIntersectionDistance);
                 
-                // Update the vertex position
-                Canvas.SetLeft(_draggedVertex, position.X - FloorTrace.Utilities.Constants.VertexHandleOffset);
-                Canvas.SetTop(_draggedVertex, position.Y - FloorTrace.Utilities.Constants.VertexHandleOffset);
+                // Use snapped position if available, otherwise use raw position
+                var visualPoint = snappedPoint ?? currentPoint;
                 
-                // Update the polygon
+                // Store the snap position for use in MouseUp
+                _visualSnapPosition = snappedPoint;
+                
+                // Update only the visual elements (vertex handle and polygon), not the actual data
+                Canvas.SetLeft(_draggedVertex, visualPoint.X - FloorTrace.Utilities.Constants.VertexHandleOffset);
+                Canvas.SetTop(_draggedVertex, visualPoint.Y - FloorTrace.Utilities.Constants.VertexHandleOffset);
+                
+                // Update the polygon visual
                 if (_polygon != null)
                 {
-                    _polygon.Points[_draggedVertexIndex] = position;
+                    _polygon.Points[_draggedVertexIndex] = new System.Windows.Point(visualPoint.X, visualPoint.Y);
                 }
                 
-                OnPerimeterChanged();
                 e.Handled = true;
             }
         }
@@ -182,9 +198,41 @@ namespace FloorTrace.Controls
         {
             if (_draggedVertex != null)
             {
+                var position = e.GetPosition(PerimeterCanvas);
+                var currentPoint = new PointF((float)position.X, (float)position.Y);
+                
+                // Apply snapping to intersection points
+                var snappedPoint = SnappingHelper.FindNearestIntersection(
+                    currentPoint, 
+                    _intersectionPoints, 
+                    Constants.SnapToIntersectionDistance);
+                
+                // Use snapped position if available, otherwise use raw position
+                var finalPoint = snappedPoint ?? currentPoint;
+                
+                // Now update the actual data point
+                _points[_draggedVertexIndex] = finalPoint;
+                
+                // Apply secondary alignment to nearby vertices if snapped
+                if (snappedPoint.HasValue)
+                {
+                    SnappingHelper.ApplySecondaryAlignment(
+                        _points, 
+                        _draggedVertexIndex, 
+                        finalPoint, 
+                        Constants.SecondaryAlignmentDistance);
+                }
+                
+                // Re-render to show final position and any aligned vertices
+                RenderPerimeter();
+                
+                // Notify that perimeter changed
+                OnPerimeterChanged();
+                
                 _draggedVertex.ReleaseMouseCapture();
                 _draggedVertex = null;
                 _draggedVertexIndex = -1;
+                _visualSnapPosition = null;
             }
         }
 
@@ -221,10 +269,30 @@ namespace FloorTrace.Controls
             if (e.ClickCount == 2 && e.LeftButton == MouseButtonState.Pressed)
             {
                 var position = e.GetPosition(PerimeterCanvas);
+                var currentPoint = new PointF((float)position.X, (float)position.Y);
                 
-                int insertIndex = GeometryHelper.FindClosestEdge(new PointF((float)position.X, (float)position.Y), _points);
+                // Apply snapping to intersection points
+                var snappedPoint = SnappingHelper.FindNearestIntersection(
+                    currentPoint, 
+                    _intersectionPoints, 
+                    Constants.SnapToIntersectionDistance);
                 
-                _points.Insert(insertIndex + 1, new PointF((float)position.X, (float)position.Y));
+                // Use snapped position if available, otherwise use raw position
+                var finalPoint = snappedPoint ?? currentPoint;
+                
+                int insertIndex = GeometryHelper.FindClosestEdge(finalPoint, _points);
+                
+                _points.Insert(insertIndex + 1, finalPoint);
+                
+                // Apply secondary alignment to nearby vertices
+                if (snappedPoint.HasValue)
+                {
+                    SnappingHelper.ApplySecondaryAlignment(
+                        _points, 
+                        insertIndex + 1, 
+                        finalPoint, 
+                        Constants.SecondaryAlignmentDistance);
+                }
                 
                 RenderPerimeter();
                 
@@ -245,18 +313,38 @@ namespace FloorTrace.Controls
                 return;
 
             var position = e.GetPosition(PerimeterCanvas);
+            var currentPoint = new PointF((float)position.X, (float)position.Y);
+            
+            // Apply snapping to intersection points
+            var snappedPoint = SnappingHelper.FindNearestIntersection(
+                currentPoint, 
+                _intersectionPoints, 
+                Constants.SnapToIntersectionDistance);
+            
+            // Use snapped position if available, otherwise use raw position
+            var finalPoint = snappedPoint ?? currentPoint;
 
             if (_points == null || _points.Count < 3)
             {
-                _points.Add(new PointF((float)position.X, (float)position.Y));
+                _points.Add(finalPoint);
                 RenderPerimeter();
                 OnPerimeterChanged();
                 e.Handled = true;
                 return;
             }
 
-            int insertIndex = GeometryHelper.FindClosestEdge(new PointF((float)position.X, (float)position.Y), _points);
-            _points.Insert(insertIndex + 1, new PointF((float)position.X, (float)position.Y));
+            int insertIndex = GeometryHelper.FindClosestEdge(finalPoint, _points);
+            _points.Insert(insertIndex + 1, finalPoint);
+            
+            // Apply secondary alignment to nearby vertices
+            if (snappedPoint.HasValue)
+            {
+                SnappingHelper.ApplySecondaryAlignment(
+                    _points, 
+                    insertIndex + 1, 
+                    finalPoint, 
+                    Constants.SecondaryAlignmentDistance);
+            }
 
             RenderPerimeter();
             OnPerimeterChanged();
