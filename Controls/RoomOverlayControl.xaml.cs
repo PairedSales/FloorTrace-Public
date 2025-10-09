@@ -39,7 +39,6 @@ namespace FloorTrace.Controls
             Width = OverlayWidth;
             Height = OverlayHeight;
 
-            // Move handler
             MoveThumb.DragDelta += (s, args) =>
             {
                 X += args.HorizontalChange;
@@ -49,7 +48,6 @@ namespace FloorTrace.Controls
                 OnOverlayChanged();
             };
 
-            // Resize handlers
             TopLeft.DragDelta += (s, args) => ResizeFromCorner(args, -1, -1);
             TopRight.DragDelta += (s, args) => ResizeFromCorner(args, +1, -1);
             BottomLeft.DragDelta += (s, args) => ResizeFromCorner(args, -1, +1);
@@ -58,13 +56,10 @@ namespace FloorTrace.Controls
 
         private void ResizeFromCorner(DragDeltaEventArgs args, int xSign, int ySign)
         {
-            // Calculate new dimensions based on drag direction
             var newDimensions = CalculateNewDimensions(args, xSign, ySign);
             
-            // Apply snapping to wall lines
             var snappedDimensions = ApplySnappingToEdges(newDimensions, xSign, ySign);
             
-            // Update overlay properties
             UpdateOverlayProperties(snappedDimensions);
         }
 
@@ -93,10 +88,8 @@ namespace FloorTrace.Controls
         {
             const double snapThreshold = 5.0;
             
-            // Snap horizontal edges to vertical lines
             SnapEdgeToLines(dimensions.X, dimensions.Width, VerticalWallLines, snapThreshold, xSign, out var snappedX, out var snappedWidth);
             
-            // Snap vertical edges to horizontal lines
             SnapEdgeToLines(dimensions.Y, dimensions.Height, HorizontalWallLines, snapThreshold, ySign, out var snappedY, out var snappedHeight);
             
             // Ensure minimum dimensions are maintained after snapping
@@ -120,7 +113,6 @@ namespace FloorTrace.Controls
             if (lines == null || lines.Count == 0)
                 return;
             
-            // Snap start edge (position) to lines
             if (direction < 0)
             {
                 var snappedPos = SnapToNearestLine(position, lines, threshold);
@@ -131,7 +123,6 @@ namespace FloorTrace.Controls
                 }
             }
             
-            // Snap end edge (position + size) to lines
             if (direction > 0)
             {
                 var endEdge = position + size;

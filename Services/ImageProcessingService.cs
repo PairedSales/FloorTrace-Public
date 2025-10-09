@@ -44,7 +44,6 @@ namespace FloorTrace.Services
                     return LoadWebPImage(filePath);
                 }
                 
-                // Handle other formats using standard WPF
                 var bitmap = new BitmapImage();
                 bitmap.BeginInit();
                 bitmap.UriSource = new Uri(filePath);
@@ -91,7 +90,6 @@ namespace FloorTrace.Services
                     if (bitmapSource == null)
                         throw new InvalidOperationException("Failed to get image from clipboard");
                     
-                    // Convert BitmapSource to BitmapImage
                     var encoder = new PngBitmapEncoder();
                     encoder.Frames.Add(BitmapFrame.Create(bitmapSource));
                     
@@ -179,7 +177,7 @@ namespace FloorTrace.Services
         
         public async Task<List<PointF>> DetectPerimeterAsync(BitmapImage image, bool useInnerEdge = true)
         {
-            // Try rectilinear detection first (new approach optimized for rectangular floor plans)
+            // Try rectilinear detection first since most floor plans are rectangular
             var result = await TryDetectRectilinearPerimeterAsync(image, useInnerEdge);
             
             if (result != null && result.Count >= Constants.MinPerimeterPoints)
@@ -188,7 +186,7 @@ namespace FloorTrace.Services
                 return result;
             }
             
-            // Fall back to original contour-based method
+            // Fall back to contour method for non-rectangular floor plans
             _logger.LogWarning("Rectilinear detection failed, falling back to contour method");
             return await DetectPerimeterUsingContoursAsync(image, useInnerEdge);
         }
@@ -203,68 +201,52 @@ namespace FloorTrace.Services
             {
                 try
                 {
-                    // Convert BitmapImage to System.Drawing.Bitmap for OpenCV processing
                     Bitmap bitmap = BitmapImageToBitmap(image);
                     
-                    // Convert to OpenCV Mat format for computer vision operations
                     using var mat = BitmapConverter.ToMat(bitmap);
                     using var gray = new Mat();
                     using var blurred = new Mat();
                     using var edges = new Mat();
                     
-                    // Convert to grayscale - simplifies edge detection and reduces processing overhead
                     Cv2.CvtColor(mat, gray, ColorConversionCodes.BGR2GRAY);
                     
-                    // Apply Gaussian blur to reduce noise and smooth the image
-                    // This helps eliminate small artifacts that could interfere with edge detection
+                    // Apply Gaussian blur to reduce noise
                     Cv2.GaussianBlur(gray, blurred, new OpenCvSharp.Size(5, 5), Constants.GaussianBlurSigma);
                     
-                    // Apply Canny edge detection to find strong edges in the image
-                    // This identifies the boundaries of walls and other structural elements
                     Cv2.Canny(blurred, edges, Constants.CannyLowThreshold, Constants.CannyHighThreshold);
                     
-                    // Apply morphological operations to close gaps in detected edges
-                    // This helps connect broken wall lines and creates more complete contours
+                    // Apply morphological operations to close gaps in edges
                     using var kernel = Cv2.GetStructuringElement(MorphShapes.Rect, new OpenCvSharp.Size(3, 3));
                     using var closed = new Mat();
                     Cv2.MorphologyEx(edges, closed, MorphTypes.Close, kernel);
                     
-                    // Find contours - these represent the boundaries of objects in the image
                     OpenCvSharp.Point[][] contours;
                     HierarchyIndex[] hierarchy;
                     Cv2.FindContours(closed, out contours, out hierarchy, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
                     
                     if (contours.Length == 0)
                     {
-                        // No contours found, return a default rectangle covering most of the image
                         return CreateDefaultPerimeter(mat.Width, mat.Height);
                     }
                     
-                    // Find the largest contour - this should be the floor plan perimeter
-                    // We assume the floor plan occupies the largest area in the image
                     var largestContour = contours.OrderByDescending(c => Cv2.ContourArea(c)).First();
                     
                     // If using inner edge, erode the contour to account for wall thickness
-                    // This shifts the perimeter inward to measure usable floor space
                     OpenCvSharp.Point[] processedContour = largestContour;
                     if (useInnerEdge)
                     {
                         processedContour = ErodeContourForInnerEdge(largestContour, gray, mat.Size());
                     }
                     
-                    // Approximate the contour to a polygon with fewer vertices
-                    // This simplifies the shape while preserving the essential perimeter
                     var epsilon = Constants.ContourApproximationEpsilon * Cv2.ArcLength(processedContour, true);
                     var approxPolygon = Cv2.ApproxPolyDP(processedContour, epsilon, true);
                     
-                    // Convert OpenCV points to .NET PointF objects for use in the application
                     var perimeterPoints = new List<PointF>();
                     foreach (var point in approxPolygon)
                     {
                         perimeterPoints.Add(new PointF(point.X, point.Y));
                     }
                     
-                    // Ensure we have at least 3 points to form a valid polygon
                     if (perimeterPoints.Count < Constants.MinPerimeterPoints)
                     {
                         _logger.LogWarning("Detected perimeter has fewer than {MinPoints} points, using default", Constants.MinPerimeterPoints);
@@ -279,7 +261,6 @@ namespace FloorTrace.Services
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error detecting perimeter, returning default rectangle");
-                    // Return a default rectangle on error to ensure the application continues to function
                     return CreateDefaultPerimeter(image.PixelWidth, image.PixelHeight);
                 }
             }).ConfigureAwait(false);
@@ -521,7 +502,6 @@ namespace FloorTrace.Services
             {
                 var thicknesses = new List<int>();
                 
-                // Sample points along the contour to measure wall thickness
                 int sampleCount = Math.Min(20, contour.Length);
                 int step = Math.Max(1, contour.Length / sampleCount);
                 
@@ -536,7 +516,6 @@ namespace FloorTrace.Services
                     var tangentX = contour[nextIdx].X - contour[prevIdx].X;
                     var tangentY = contour[nextIdx].Y - contour[prevIdx].Y;
                     
-                    // Normal is perpendicular to tangent (rotate 90 degrees), pointing inward
                     double normalX = -tangentY;
                     double normalY = tangentX;
                     
@@ -547,7 +526,6 @@ namespace FloorTrace.Services
                     normalX /= normalLength;
                     normalY /= normalLength;
                     
-                    // Sample along the normal to find wall thickness
                     int thickness = FindWallThicknessAlongNormal(point, new OpenCvSharp.Point2f((float)normalX, (float)normalY), grayImage);
                     if (thickness > 0)
                     {
@@ -555,7 +533,6 @@ namespace FloorTrace.Services
                     }
                 }
                 
-                // Return median thickness, or default if no valid measurements
                 if (thicknesses.Count > 0)
                 {
                     thicknesses.Sort();
@@ -581,10 +558,9 @@ namespace FloorTrace.Services
         {
             try
             {
-                // Sample pixels along the normal direction to find where darkness ends
                 const int maxDistance = Constants.MaxWallThicknessPixels;
-                const int darkThreshold = 127; // Consider pixels darker than this as part of the wall
-                const int requiredConsecutive = 2; // Need 2 consecutive bright pixels to confirm wall edge
+                const int darkThreshold = 127;
+                const int requiredConsecutive = 2;
                 
                 int consecutiveBright = 0;
                 
@@ -593,16 +569,13 @@ namespace FloorTrace.Services
                     int x = (int)(point.X + inwardNormal.X * distance);
                     int y = (int)(point.Y + inwardNormal.Y * distance);
                     
-                    // Check bounds
                     if (!IsPointWithinImageBounds(x, y, grayImage.Width, grayImage.Height))
                     {
                         break;
                     }
                     
-                    // Get pixel intensity
                     byte intensity = grayImage.At<byte>(y, x);
                     
-                    // If pixel is bright (not part of wall), increment counter
                     if (intensity > darkThreshold)
                     {
                         consecutiveBright++;
@@ -617,7 +590,7 @@ namespace FloorTrace.Services
                     }
                 }
                 
-                return 0; // Couldn't find clear wall edge
+                return 0;
             }
             catch
             {
@@ -635,7 +608,6 @@ namespace FloorTrace.Services
         
         private List<PointF> CreateDefaultPerimeter(int width, int height)
         {
-            // Create a rectangle with some margin from the edges
             var margin = Math.Min(width, height) * Constants.DefaultPerimeterMarginRatio;
             _logger.LogDebug("Creating default perimeter with margin {Margin} for image {Width}x{Height}", margin, width, height);
             return new List<PointF>

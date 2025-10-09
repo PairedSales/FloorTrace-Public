@@ -33,7 +33,6 @@ namespace FloorTrace
             LoadWindowSettings();
             
 
-            // Add a handler for when a new image is loaded to center it
             var vm = _viewModel;
             if (vm != null)
             {
@@ -61,7 +60,7 @@ namespace FloorTrace
         {
             if (args.PropertyName == nameof(vm.CurrentImage) && vm.CurrentImage != null)
             {
-                // Use Dispatcher to wait for the layout to update after the image loads
+                // Defer until layout is complete to ensure accurate viewport dimensions
                 Dispatcher.BeginInvoke(new Action(() =>
                 {
                     FitImageToWindow();
@@ -76,7 +75,6 @@ namespace FloorTrace
         {
             if (args.PropertyName == nameof(vm.CurrentSketch))
             {
-                // Sketch replaced; clear any overlays
                 OverlayCanvas.Children.Clear();
                 _perimeterOverlay = null;
             }
@@ -147,7 +145,6 @@ namespace FloorTrace
                 if (settings == null)
                     return;
 
-                // Check if window is mostly visible on any screen (at least 50% of window area)
                 bool isWindowVisible = IsWindowVisibleOnAnyScreen(settings);
 
                 if (isWindowVisible)
@@ -160,13 +157,11 @@ namespace FloorTrace
                 }
                 else
                 {
-                    // Window is off-screen, load with default position
                     this.WindowStartupLocation = WindowStartupLocation.CenterScreen;
                 }
             }
             catch (Exception)
             {
-                // If settings are corrupted, use default position
                 this.WindowStartupLocation = WindowStartupLocation.CenterScreen;
             }
         }
@@ -197,14 +192,12 @@ namespace FloorTrace
         /// </summary>
         private static bool IsRectangleVisibleOnScreen(Rect windowRect, Rect screenBounds)
         {
-            // Calculate intersection area
             var intersection = Rect.Intersect(windowRect, screenBounds);
             if (intersection.IsEmpty)
             {
                 return false;
             }
 
-            // Check if at least 50% of window is visible
             double windowArea = windowRect.Width * windowRect.Height;
             double visibleArea = intersection.Width * intersection.Height;
             return visibleArea / windowArea >= 0.5;
@@ -228,43 +221,31 @@ namespace FloorTrace
         {
             if (FloorPlanImage.Source == null) return;
 
-            // Calculate new zoom factor based on wheel direction
             var oldZoom = _zoomFactor;
             var newZoom = _zoomFactor + (e.Delta > 0 ? FloorTrace.Utilities.Constants.ZoomStep : -FloorTrace.Utilities.Constants.ZoomStep);
             _zoomFactor = Math.Max(FloorTrace.Utilities.Constants.MinZoom, Math.Min(FloorTrace.Utilities.Constants.MaxZoom, newZoom));
 
-            // Get mouse position relative to the ScrollViewer (viewport)
-            // This is where the user's cursor is on the screen
             var mousePosition = e.GetPosition(ImageScrollViewer);
             
-            // Calculate the point in the panning canvas that the mouse is pointing to
-            // This accounts for the current scroll position
             var canvasPoint = new System.Windows.Point(
                 mousePosition.X + ImageScrollViewer.HorizontalOffset,
                 mousePosition.Y + ImageScrollViewer.VerticalOffset
             );
             
-            // Calculate the point in the original (unzoomed) image coordinates
-            // This converts from canvas coordinates to image coordinates using the old zoom factor
             var imagePoint = new System.Windows.Point(
                 (canvasPoint.X - PanningCanvas.Width / 2) / oldZoom,
                 (canvasPoint.Y - PanningCanvas.Height / 2) / oldZoom
             );
             
-            // Apply the new zoom transformation
             ZoomTransform.ScaleX = _zoomFactor;
             ZoomTransform.ScaleY = _zoomFactor;
             
-            // Calculate new scroll position to keep the mouse point visually fixed
-            // This ensures the point under the cursor stays in the same screen position after zooming
             var newCanvasX = (imagePoint.X * _zoomFactor) + PanningCanvas.Width / 2;
             var newCanvasY = (imagePoint.Y * _zoomFactor) + PanningCanvas.Height / 2;
             
-            // Calculate the new scroll offsets to maintain the visual position
             var newScrollX = newCanvasX - mousePosition.X;
             var newScrollY = newCanvasY - mousePosition.Y;
             
-            // Apply the new scroll position with bounds checking
             ImageScrollViewer.ScrollToHorizontalOffset(Math.Max(0, newScrollX));
             ImageScrollViewer.ScrollToVerticalOffset(Math.Max(0, newScrollY));
             
@@ -315,25 +296,19 @@ namespace FloorTrace
         {
             if (FloorPlanImage.Source != null)
             {
-                // Get the actual image dimensions
                 var imageWidth = FloorPlanImage.Source.Width;
                 var imageHeight = FloorPlanImage.Source.Height;
                 
-                // Get the available viewport space
                 var viewportWidth = ImageScrollViewer.ViewportWidth;
                 var viewportHeight = ImageScrollViewer.ViewportHeight;
                 
-                // Calculate zoom factors to fit both width and height
                 var zoomX = viewportWidth / imageWidth;
                 var zoomY = viewportHeight / imageHeight;
                 
-                // Use the smaller zoom factor to ensure the image fits completely
                 _zoomFactor = Math.Min(zoomX, zoomY);
                 
-                // Apply some padding (10% smaller)
                 _zoomFactor *= 0.9;
                 
-                // Ensure we stay within zoom limits
                 _zoomFactor = Math.Max(FloorTrace.Utilities.Constants.MinZoom, 
                                       Math.Min(FloorTrace.Utilities.Constants.MaxZoom, _zoomFactor));
                 
@@ -349,7 +324,6 @@ namespace FloorTrace
 
         private void RenderSelectedRoomOverlay(MainWindowViewModel vm)
         {
-            // Remove existing room overlays
             var existingRoomOverlays = OverlayCanvas.Children.OfType<Controls.RoomOverlayControl>().ToList();
             foreach (var existing in existingRoomOverlays)
             {
@@ -374,7 +348,6 @@ namespace FloorTrace
 
             overlay.OverlayChanged += (s, e) =>
             {
-                // Sync position and size back into model
                 room.Bounds = new System.Drawing.RectangleF((float)overlay.X, (float)overlay.Y, (float)overlay.OverlayWidth, (float)overlay.OverlayHeight);
                 // Recalculate scale when overlay changes (this will trigger auto area calc)
                 _viewModel.RecalculateScale();
@@ -387,12 +360,10 @@ namespace FloorTrace
         {
             var room = vm?.CurrentSketch?.SelectedRoomForScale;
             
-            // Always show dimensions panel
             DimensionsPanel.Visibility = Visibility.Visible;
             
             if (room == null)
             {
-                // Clear the text when no room is selected
                 RoomDimensionsTextBox.Text = string.Empty;
                 RoomDimensionsTextBox.TextChanged -= OnDimensionsTextChanged;
                 return;
@@ -402,7 +373,6 @@ namespace FloorTrace
                 ? $"{room.WidthFeet:F1} x {room.HeightFeet:F1}"
                 : room.Dimensions;
 
-            // Add text changed handler
             RoomDimensionsTextBox.TextChanged -= OnDimensionsTextChanged;
             RoomDimensionsTextBox.TextChanged += OnDimensionsTextChanged;
         }
@@ -427,7 +397,6 @@ namespace FloorTrace
 
         private void RenderPerimeterOverlay(MainWindowViewModel vm)
         {
-            // Remove existing perimeter overlay if any
             if (_perimeterOverlay != null)
             {
                 OverlayCanvas.Children.Remove(_perimeterOverlay);
@@ -438,24 +407,18 @@ namespace FloorTrace
             if (points == null || points.Count < 3)
                 return;
 
-            // Create new perimeter overlay
             _perimeterOverlay = new Controls.PerimeterOverlayControl();
             _perimeterOverlay.SetPoints(points);
             
-            // Perimeter is always editable when visible
             _perimeterOverlay.IsEditable = true;
             
-            // Handle perimeter changes with auto-calculation
             _perimeterOverlay.PerimeterChanged += async (s, e) =>
             {
-                // Sync the perimeter points back to the model
                 vm!.CurrentSketch.PerimeterPoints = _perimeterOverlay.GetPoints();
                 
-                // Trigger auto area calculation
                 await vm.TryAutoCalculateAreaAsync();
             };
 
-            // Set the overlay to fill the canvas
             _perimeterOverlay.Width = FloorPlanImage.Source?.Width ?? 0;
             _perimeterOverlay.Height = FloorPlanImage.Source?.Height ?? 0;
             

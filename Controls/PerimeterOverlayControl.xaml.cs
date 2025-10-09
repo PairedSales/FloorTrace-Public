@@ -62,12 +62,10 @@ namespace FloorTrace.Controls
             if (_points.Count < 3)
                 return;
 
-            // Create the polygon with Material Design styling
             _polygon = CreatePolygonWithStyling();
             _polygon.MouseDown += Polygon_MouseDown;
             PerimeterCanvas.Children.Add(_polygon);
 
-            // Create vertex thumbs
             CreateAndAddVertices();
         }
 
@@ -198,7 +196,6 @@ namespace FloorTrace.Controls
                 return;
             }
 
-            // Don't allow removing if we have only 3 vertices
             if (_points.Count <= 3)
             {
                 e.Handled = true;
@@ -208,10 +205,8 @@ namespace FloorTrace.Controls
             var vertex = sender as Ellipse;
             var index = (int)vertex!.Tag;
             
-            // Remove the point
             _points.RemoveAt(index);
             
-            // Re-render the perimeter
             RenderPerimeter();
             
             OnPerimeterChanged();
@@ -223,18 +218,14 @@ namespace FloorTrace.Controls
             if (!_isEditable)
                 return;
 
-            // Double-click to add a vertex
             if (e.ClickCount == 2 && e.LeftButton == MouseButtonState.Pressed)
             {
                 var position = e.GetPosition(PerimeterCanvas);
                 
-                // Find the closest edge to insert the new point
                 int insertIndex = GeometryHelper.FindClosestEdge(new PointF((float)position.X, (float)position.Y), _points);
                 
-                // Insert the new point
                 _points.Insert(insertIndex + 1, new PointF((float)position.X, (float)position.Y));
                 
-                // Re-render the perimeter
                 RenderPerimeter();
                 
                 OnPerimeterChanged();
@@ -247,11 +238,9 @@ namespace FloorTrace.Controls
             if (!_isEditable)
                 return;
 
-            // Only handle clicks that target the canvas itself (not vertices or polygon)
             if (e.OriginalSource is not Canvas)
                 return;
 
-            // Require double-click to add a point
             if (!(e.ClickCount == 2 && e.LeftButton == MouseButtonState.Pressed))
                 return;
 
@@ -259,7 +248,6 @@ namespace FloorTrace.Controls
 
             if (_points == null || _points.Count < 3)
             {
-                // Build up points until we have a valid polygon
                 _points.Add(new PointF((float)position.X, (float)position.Y));
                 RenderPerimeter();
                 OnPerimeterChanged();
@@ -267,7 +255,6 @@ namespace FloorTrace.Controls
                 return;
             }
 
-            // Insert at the closest edge to the click position
             int insertIndex = GeometryHelper.FindClosestEdge(new PointF((float)position.X, (float)position.Y), _points);
             _points.Insert(insertIndex + 1, new PointF((float)position.X, (float)position.Y));
 

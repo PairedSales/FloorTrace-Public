@@ -106,7 +106,6 @@ namespace FloorTrace.ViewModels
             _dialogService = dialogService;
             _configuration = configuration;
             
-            // Read saving settings from configuration
             IsSavingEnabled = _configuration.GetValue<bool>("ApplicationSettings:IsSavingEnabled");
             MaxSavedSketches = _configuration.GetValue<int>("ApplicationSettings:MaxSavedSketches");
             UseInnerWallEdge = _configuration.GetValue<bool>("ApplicationSettings:UseInnerWallEdge", true);
@@ -201,16 +200,12 @@ namespace FloorTrace.ViewModels
         
         private async Task LoadImageFromPathAsync(string filePath)
         {
-            // Load the image and create thumbnail
             var (image, thumbnail) = await LoadImageAndCreateThumbnail(filePath);
             
-            // Create sketch from image data
             CurrentSketch = CreateSketchFromImage(filePath, image, thumbnail);
             
-            // Store the full image for display
             _currentImage = image;
             
-            // Notify UI of changes
             OnPropertyChanged(nameof(CurrentImage));
             OnPropertyChanged(nameof(ScaleText));
             OnPropertyChanged(nameof(SideLengthsText));
@@ -264,10 +259,8 @@ namespace FloorTrace.ViewModels
 
             try
             {
-                // Detect wall lines for snapping
                 await DetectWallLinesForSnapping();
                 
-                // Detect rooms
                 var detectedRooms = await _scaleCalculationService.DetectRoomsAsync(CurrentImage);
 
                 if (detectedRooms.Any())
@@ -305,7 +298,6 @@ namespace FloorTrace.ViewModels
         /// </summary>
         private async Task ProcessDetectedRooms(List<Room> detectedRooms)
         {
-            // For now, we only care about the first detected room
             CurrentSketch.Rooms = detectedRooms;
             CurrentSketch.SelectedRoomForScale = detectedRooms.First();
             CurrentSketch.CurrentState = WorkflowState.RoomDetected;
@@ -331,7 +323,6 @@ namespace FloorTrace.ViewModels
                 "No rooms with dimension labels were detected in the image. You may need to adjust the image or add dimensions manually.",
                 "No Rooms Detected");
             
-            // Clear any previously detected rooms if none are found now
             CurrentSketch.Rooms.Clear();
             CurrentSketch.SelectedRoomForScale = null;
             OnPropertyChanged(nameof(CurrentSketch.Rooms));
@@ -373,16 +364,12 @@ namespace FloorTrace.ViewModels
                 {
                     _logger.LogInformation("Wall edge preference changed to {UseInner}, re-tracing perimeter", UseInnerWallEdge);
                     
-                    // Re-detect the perimeter with the new setting
                     var perimeterPoints = await _imageProcessingService.DetectPerimeterAsync(CurrentImage, UseInnerWallEdge);
                     
-                    // Store in the current sketch
                     CurrentSketch.PerimeterPoints = perimeterPoints;
                     
-                    // Notify UI of changes
                     OnPropertyChanged(nameof(CurrentSketch.PerimeterPoints));
                     
-                    // Re-calculate area with the new perimeter
                     await TryAutoCalculateAreaAsync();
                     
                     // Auto-save after perimeter re-traced
@@ -412,17 +399,14 @@ namespace FloorTrace.ViewModels
 
             try
             {
-                // Detect the perimeter automatically with the current wall edge preference
                 var perimeterPoints = await _imageProcessingService.DetectPerimeterAsync(CurrentImage, UseInnerWallEdge);
                 
-                // Store in the current sketch
                 CurrentSketch.PerimeterPoints = perimeterPoints;
                 CurrentSketch.CurrentState = WorkflowState.PerimeterTraced;
                 
                 _logger.LogInformation("Traced perimeter with {Count} points (inner edge: {UseInner})", 
                     perimeterPoints.Count, UseInnerWallEdge);
                 
-                // Notify UI of changes
                 OnPropertyChanged(nameof(CurrentSketch.PerimeterPoints));
                 
                 // Auto-save after perimeter traced
@@ -494,13 +478,11 @@ namespace FloorTrace.ViewModels
         /// </summary>
         private bool ValidateCalculationPrerequisites()
         {
-            // Check if we have enough perimeter points to form a valid polygon
             if (CurrentSketch?.PerimeterPoints == null || CurrentSketch.PerimeterPoints.Count < 3)
             {
                 return false;
             }
 
-            // Check if scale is set (room detected)
             if (CurrentSketch.Scale <= 0)
             {
                 return false;
@@ -535,21 +517,17 @@ namespace FloorTrace.ViewModels
         /// </summary>
         private async Task PerformAreaCalculation()
         {
-            // Calculate area in pixels using Green's theorem
             var areaInPixels = await _areaCalculationService.CalculateAreaUsingGreensTheoremAsync(CurrentSketch.PerimeterPoints);
             
-            // Convert from square pixels to square feet using the scale factor
             var areaInSquareFeet = areaInPixels / (CurrentSketch.Scale * CurrentSketch.Scale);
             CurrentSketch.AreaSquareFeet = areaInSquareFeet;
             
-            // Calculate and convert side lengths
             var sideLengthsInFeet = await ConvertSideLengthsToFeet();
             CurrentSketch.SideLengths = sideLengthsInFeet;
             CurrentSketch.CurrentState = WorkflowState.AreaCalculated;
             
             _logger.LogInformation("Auto-calculated area: {Area:F2} sq ft", areaInSquareFeet);
             
-            // Update UI properties to reflect the new calculations
             OnPropertyChanged(nameof(ScaleText));
             OnPropertyChanged(nameof(SideLengthsText));
             OnPropertyChanged(nameof(AreaText));
@@ -564,10 +542,8 @@ namespace FloorTrace.ViewModels
         /// </summary>
         private async Task<List<double>> ConvertSideLengthsToFeet()
         {
-            // Calculate side lengths in pixels for display purposes
             var sideLengthsInPixels = await _areaCalculationService.CalculateSideLengthsAsync(CurrentSketch.PerimeterPoints);
             
-            // Convert each side length from pixels to feet
             var sideLengthsInFeet = new List<double>();
             foreach (var lengthInPixels in sideLengthsInPixels)
             {
@@ -582,14 +558,12 @@ namespace FloorTrace.ViewModels
         {
             try
             {
-                // Check if saving is enabled
                 if (!IsSavingEnabled)
                 {
                     _logger.LogDebug("Skipping auto-save, saving is disabled");
                     return;
                 }
                 
-                // Only auto-save if we have detected a room
                 if (CurrentSketch.CurrentState < WorkflowState.RoomDetected)
                 {
                     _logger.LogDebug("Skipping auto-save, no room detected yet");
@@ -598,18 +572,15 @@ namespace FloorTrace.ViewModels
                 
                 CurrentSketch.DateModified = DateTime.Now;
                 
-                // Save to storage with images (auto-saved sketches are not permanent)
                 await _storageService.SaveSketchAsync(CurrentSketch, _currentImage, CurrentSketch.Thumbnail);
                 
                 _logger.LogInformation("Sketch {SketchId} auto-saved", CurrentSketch.Id);
                 
-                // Refresh the list
                 await LoadPriorSketchesAsync();
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error auto-saving sketch");
-                // Don't show error dialog for auto-save failures
             }
         }
         
@@ -618,27 +589,22 @@ namespace FloorTrace.ViewModels
         {
             try
             {
-                // Save current sketch if it has a detected room
                 if (CurrentSketch.CurrentState >= WorkflowState.RoomDetected)
                 {
                     await AutoSaveSketchAsync();
                 }
                 
-                // Load the selected sketch
                 var loadedSketch = await _storageService.LoadSketchAsync(sketchId);
                 
-                // Load the full image
                 BitmapImage? fullImage = null;
                 if (!string.IsNullOrEmpty(loadedSketch.ImagePath) && File.Exists(loadedSketch.ImagePath))
                 {
                     fullImage = await _storageService.LoadImageFromPathAsync(loadedSketch.ImagePath);
                 }
                 
-                // Update current sketch and image
                 CurrentSketch = loadedSketch;
                 _currentImage = fullImage;
                 
-                // Notify UI of changes
                 OnPropertyChanged(nameof(CurrentImage));
                 OnPropertyChanged(nameof(ScaleText));
                 OnPropertyChanged(nameof(SideLengthsText));
@@ -733,7 +699,6 @@ namespace FloorTrace.ViewModels
         {
             try
             {
-                // If saving is disabled, don't load prior sketches
                 if (!IsSavingEnabled)
                 {
                     PriorSketches.Clear();
@@ -743,7 +708,6 @@ namespace FloorTrace.ViewModels
                 
                 var sketches = await _storageService.LoadRecentSketchesAsync(MaxSavedSketches);
                 
-                // Update UI collection
                 PriorSketches.Clear();
                 foreach (var sketch in sketches)
                 {
@@ -755,7 +719,6 @@ namespace FloorTrace.ViewModels
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to load prior sketches");
-                // Don't show error dialog here as this runs on startup
             }
         }
         

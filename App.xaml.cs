@@ -10,6 +10,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Serilog;
+using System.IO;
+using System.Reflection;
 
 namespace FloorTrace
 {
@@ -23,6 +25,9 @@ namespace FloorTrace
 
         public App()
         {
+            // Required to support packaged third-party DLLs in distribution builds
+            AppDomain.CurrentDomain.AssemblyResolve += OnAssemblyResolve;
+            
             AppHost = Host.CreateDefaultBuilder()
                 .ConfigureAppConfiguration(cfg =>
                 {
@@ -34,14 +39,12 @@ namespace FloorTrace
                              .Enrich.FromLogContext())
                 .ConfigureServices((context, services) =>
                 {
-                    // Register services
                     services.AddSingleton<Services.IImageProcessingService, Services.ImageProcessingService>();
                     services.AddSingleton<Services.IScaleCalculationService, Services.ScaleCalculationService>();
                     services.AddSingleton<Services.IAreaCalculationService, Services.AreaCalculationService>();
                     services.AddSingleton<Services.IStorageService, Services.StorageService>();
                     services.AddSingleton<Services.IDialogService, Services.DialogService>();
                     
-                    // Register ViewModels and Views
                     services.AddTransient<ViewModels.MainWindowViewModel>();
                     services.AddTransient<MainWindow>();
                 })
@@ -62,11 +65,8 @@ namespace FloorTrace
             base.OnStartup(e);
             RegisterGlobalExceptionHandlers();
             
-            // Start the host
             await AppHost.StartAsync();
             
-            
-            // Get MainWindow from DI container and show it
             var mainWindow = AppHost.Services.GetRequiredService<MainWindow>();
             mainWindow.Show();
         }
@@ -104,6 +104,24 @@ namespace FloorTrace
             };
         }
 
+        private Assembly? OnAssemblyResolve(object? sender, ResolveEventArgs args)
+        {
+            var assemblyName = new AssemblyName(args.Name);
+            
+            var appDirectory = AppDomain.CurrentDomain.BaseDirectory;
+            var libsDirectory = Path.Combine(appDirectory, "libs");
+            
+            if (Directory.Exists(libsDirectory))
+            {
+                var assemblyPath = Path.Combine(libsDirectory, $"{assemblyName.Name}.dll");
+                if (File.Exists(assemblyPath))
+                {
+                    return Assembly.LoadFrom(assemblyPath);
+                }
+            }
+            
+            return null;
+        }
 
 
     }

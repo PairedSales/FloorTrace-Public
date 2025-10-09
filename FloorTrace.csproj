@@ -17,6 +17,9 @@
     <Product>FloorTrace</Product>
     <!-- Allow forward compatibility with newer .NET 8.x versions -->
     <RollForward>LatestMinor</RollForward>
+    <!-- Framework-dependent deployment settings -->
+    <SelfContained>false</SelfContained>
+    <PublishSingleFile>false</PublishSingleFile>
   </PropertyGroup>
 
   <ItemGroup>

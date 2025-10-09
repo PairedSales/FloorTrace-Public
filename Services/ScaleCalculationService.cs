@@ -74,13 +74,10 @@ namespace FloorTrace.Services
         {
             if (image == null) return new List<Room>();
 
-            // Perform OCR on the image
             var ocrResult = await PerformOcrOnImage(image).ConfigureAwait(false);
             
-            // Detect and cluster wall lines once per image
             var wallLines = await DetectAndClusterWallLines(image).ConfigureAwait(false);
 
-            // Parse dimension candidates from OCR results
             var roomCandidates = await ParseDimensionCandidates(ocrResult, wallLines).ConfigureAwait(false);
 
             return SelectFirstDetectedRoom(roomCandidates);
@@ -123,10 +120,8 @@ namespace FloorTrace.Services
                 if (!DimensionParser.IsDimensionString(text)) continue;
                 if (!DimensionParser.TryParseDimensionsFeet(text, out var widthFeet, out var heightFeet)) continue;
 
-                // Union all word bounding rects to approximate the line rectangle
                 var textRect = line.Words.Select(w => w.BoundingRect).Aggregate((a, b) => Union(a, b));
 
-                // Try to infer bounds from detected wall lines (axis-aligned)
                 var inferredBounds = await FindRoomBoundsFromLabelAsync(
                     ocrResult.SoftwareBitmap,
                     textRect,
@@ -181,7 +176,6 @@ namespace FloorTrace.Services
                 var scaleFromWidth = roomWidthPixels / room.WidthFeet;
                 var scaleFromHeight = roomHeightPixels / room.HeightFeet;
                 
-                // Return average of width and height scale for better accuracy
                 return (scaleFromWidth + scaleFromHeight) / 2.0;
             });
         }
@@ -276,11 +270,9 @@ namespace FloorTrace.Services
             double widthFeet,
             double heightFeet)
         {
-            // Image dimensions
             var imageWidth = softwareBitmap.PixelWidth;
             var imageHeight = softwareBitmap.PixelHeight;
 
-            // Partition candidate lines around the label rectangle
             var candidateLines = PartitionCandidateLines(textRect, horizontalLines, verticalLines, imageWidth, imageHeight);
             
             if (!HasValidCandidateLines(candidateLines))
@@ -291,7 +283,6 @@ namespace FloorTrace.Services
             // Limit candidates to reduce combinatorics
             var limitedCandidates = LimitCandidateLines(candidateLines);
 
-            // Calculate the best bounding box
             var bestRect = CalculateBestBoundingBox(limitedCandidates, textRect, widthFeet, heightFeet);
 
             return Task.FromResult(bestRect);
@@ -371,13 +362,12 @@ namespace FloorTrace.Services
         {
             bool hasAspectRatio = widthFeet > 0 && heightFeet > 0;
             double targetAspect = hasAspectRatio ? (widthFeet / heightFeet) : 0.0;
-            const double aspectTolerance = 0.25; // 25%
+            const double aspectTolerance = 0.25;
 
             System.Drawing.RectangleF bestRect = System.Drawing.RectangleF.Empty;
             double bestScore = double.PositiveInfinity;
             bool foundWithinAspect = false;
 
-            // Minimum room pixel size from UI constants
             float minWidth = (float)Constants.MinControlWidth;
             float minHeight = (float)Constants.MinControlHeight;
 
@@ -414,7 +404,6 @@ namespace FloorTrace.Services
                                 }
                                 else if (!foundWithinAspect && score < bestScore)
                                 {
-                                    // Only consider out-of-aspect if no in-aspect found yet
                                     bestScore = score;
                                     bestRect = new System.Drawing.RectangleF((float)left, (float)top, width, height);
                                 }
@@ -462,7 +451,6 @@ namespace FloorTrace.Services
                 float height = (float)(bottom - top);
                 var pixelAspect = width / height;
                 var relativeError = Math.Abs(pixelAspect - targetAspect) / targetAspect;
-                // Weight ratio error significantly to break ties
                 score += relativeError * 1000.0;
             }
 
